@@ -17,6 +17,11 @@
       v-else
       :active-url="activeUrl"
       :set-back-button-ref="setBackButtonRef"
+      :show-live-menu="liveMenuVisible"
+      :live-menu-groups="liveMenuGroups"
+      :active-live-group-index="liveMenuGroupIndex"
+      :active-live-column="liveMenuColumn"
+      :active-live-item-index="currentLiveItemIndex"
       @go-home="goHome"
     />
   </main>
@@ -34,7 +39,22 @@ const activeUrl = ref('');
 const activeTitle = ref('');
 const cardRefs = ref<HTMLButtonElement[]>([]);
 const backButtonRef = ref<HTMLButtonElement | null>(null);
+const liveMenuVisible = ref(false);
+const liveMenuGroupIndex = ref(0);
+const liveMenuColumn = ref<'group' | 'item'>('group');
+const liveMenuItemIndices = ref([0, 0]);
 let timer: number | undefined;
+const TV_LIVE_URL = 'https://tv.cctv.com/live/';
+const liveMenuGroups = [
+  {
+    label: '央视频道',
+    items: ['内容稍后添加']
+  },
+  {
+    label: '卫视频道',
+    items: ['内容稍后添加']
+  }
+] as const;
 
 const formatter = new Intl.DateTimeFormat('zh-CN', {
   month: 'long',
@@ -51,6 +71,9 @@ const currentTime = computed(() =>
 );
 
 const currentDate = computed(() => formatter.format(now.value));
+const isTvLiveOpen = computed(() => activeUrl.value.startsWith(TV_LIVE_URL));
+const currentLiveItems = computed(() => liveMenuGroups[liveMenuGroupIndex.value].items);
+const currentLiveItemIndex = computed(() => liveMenuItemIndices.value[liveMenuGroupIndex.value] ?? 0);
 
 function updateTime() {
   now.value = new Date();
@@ -59,6 +82,7 @@ function updateTime() {
 function openSite(item: Shortcut) {
   activeUrl.value = item.url;
   activeTitle.value = item.name;
+  closeLiveMenu();
 
   nextTick(() => {
     backButtonRef.value?.focus();
@@ -68,6 +92,7 @@ function openSite(item: Shortcut) {
 function goHome() {
   activeUrl.value = '';
   activeTitle.value = '';
+  closeLiveMenu();
 
   nextTick(() => {
     focusSelectedCard();
@@ -98,8 +123,84 @@ function moveSelection(offset: number) {
   focusSelectedCard();
 }
 
+function toggleLiveMenu() {
+  if (!isTvLiveOpen.value) {
+    return;
+  }
+
+  liveMenuVisible.value = !liveMenuVisible.value;
+
+  if (!liveMenuVisible.value) {
+    liveMenuColumn.value = 'group';
+  }
+}
+
+function closeLiveMenu() {
+  liveMenuVisible.value = false;
+  liveMenuColumn.value = 'group';
+}
+
+function moveLiveMenuGroup(offset: number) {
+  const total = liveMenuGroups.length;
+  liveMenuGroupIndex.value = (liveMenuGroupIndex.value + offset + total) % total;
+}
+
+function moveLiveMenuItem(offset: number) {
+  const items = currentLiveItems.value;
+  const total = items.length;
+  const nextIndex = (currentLiveItemIndex.value + offset + total) % total;
+
+  liveMenuItemIndices.value[liveMenuGroupIndex.value] = nextIndex;
+}
+
 function handleKeydown(event: KeyboardEvent) {
   if (activeUrl.value) {
+    if (isTvLiveOpen.value && event.key === 'Enter') {
+      event.preventDefault();
+      toggleLiveMenu();
+      return;
+    }
+
+    if (liveMenuVisible.value) {
+      if (event.key === 'Escape' || event.key === 'Backspace') {
+        event.preventDefault();
+        closeLiveMenu();
+        return;
+      }
+
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        liveMenuColumn.value = liveMenuColumn.value === 'group' ? 'item' : 'group';
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        event.preventDefault();
+
+        if (liveMenuColumn.value === 'group') {
+          moveLiveMenuGroup(-1);
+          return;
+        }
+
+        moveLiveMenuItem(-1);
+        return;
+      }
+
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+
+        if (liveMenuColumn.value === 'group') {
+          moveLiveMenuGroup(1);
+          return;
+        }
+
+        moveLiveMenuItem(1);
+        return;
+      }
+
+      return;
+    }
+
     if (event.key === 'Escape' || event.key === 'Backspace') {
       event.preventDefault();
       goHome();

@@ -2,7 +2,8 @@ export const shortcuts = [
     {
         name: 'TV直播',
         badge: 'LIVE',
-        url: 'https://tv.cctv.com/live/',
+        //url: 'https://tv.cctv.com/live/',
+        url: 'https://www.yangshipin.cn/tv/home',
         theme: 'theme-live'
     },
     {

@@ -16,13 +16,15 @@ let win: InstanceType<typeof BrowserWindow>;
 let tray: InstanceType<typeof Tray> | null = null;
 let isQuitting = false;
 
-function createTrayIcon() {
-    const customIconPathCandidates = [
+function resolveCustomIconPath() {
+    return [
         path.resolve(__dirname, '../assets/tray-icon.png'),
         path.resolve(__dirname, '../../electron/assets/tray-icon.png')
-    ];
+    ].find((candidate) => fs.existsSync(candidate));
+}
 
-    const customIconPath = customIconPathCandidates.find((candidate) => fs.existsSync(candidate));
+function createTrayIcon() {
+    const customIconPath = resolveCustomIconPath();
     if (customIconPath) {
         return nativeImage.createFromPath(customIconPath).resize({ width: 16, height: 16 });
     }
@@ -44,10 +46,13 @@ function createTrayIcon() {
 }
 
 function createWindow() {
+    const customIconPath = resolveCustomIconPath();
+
     win = new BrowserWindow({
         width: 800,
         height: 600,
         backgroundColor: '#06161b',
+        icon: customIconPath,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
