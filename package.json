@@ -1,0 +1,36 @@
+{
+  "name": "tvassistant",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/electron/main.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev:renderer": "vite",
+    "dev:electron:build": "tsc -p tsconfig.json --watch --preserveWatchOutput",
+    "dev:electron": "node scripts/dev-electron.mjs",
+    "dev": "cross-env NODE_ENV=development concurrently \"npm run dev:renderer\" \"npm run dev:electron:build\" \"npm run dev:electron\"",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.json",
+    "build": "npm run build:renderer && npm run build:electron",
+    "start": "node scripts/start-electron.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "concurrently": "^9.2.1",
+    "cross-env": "^10.1.0",
+    "electron": "^41.1.0",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "wait-on": "^9.0.4"
+  },
+  "dependencies": {
+    "clipboardy": "^5.3.1",
+    "robotjs": "^0.7.0",
+    "vue": "^3.5.31"
+  }
+}
