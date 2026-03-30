@@ -1,60 +1,60 @@
-<template>
+﻿<template>
   <div class="background-image" />
   <div class="background-overlay" />
 
-    <header class="top-bar">
-      <div class="top-left">
-        <span class="status-dot" />
-        <span class="status-dot" />
-      </div>
-      <div class="top-actions">
-        <button
-          type="button"
-          class="icon-button"
-          aria-label="刷新时间"
-          @click="$emit('refresh-time')"
-        >
-          ↻
-        </button>
-        <button
-          type="button"
-          class="icon-button"
-          aria-label="退出应用"
-          @click="$emit('close-window')"
-        >
-          ✕
-        </button>
-      </div>
-    </header>
-
-    <section class="hero-panel">
-      <span class="hero-line hero-line-top" />
-      <div class="time-block">
-        <div class="time-value">{{ currentTime }}</div>
-        <div class="time-date">{{ currentDate }}</div>
-      </div>
-      <span class="hero-line hero-line-bottom" />
-    </section>
-
-    <section class="card-grid" aria-label="快捷入口">
+  <header class="top-bar">
+    <div class="top-left">
+      <span class="status-dot" />
+      <span class="status-dot" />
+    </div>
+    <div class="top-actions">
       <button
-        v-for="(item, index) in shortcuts"
-        :key="item.name"
         type="button"
-        class="site-card"
-        :class="[item.theme, { 'is-selected': selectedIndex === index }]"
-        :tabindex="selectedIndex === index ? 0 : -1"
-        :ref="(element) => setCardRef(element, index)"
-        @click="$emit('open-site', item)"
-        @focus="$emit('focus-card', index)"
+        class="icon-button"
+        aria-label="打开设置"
+        @click="$emit('open-settings')"
       >
-        <div class="card-art">
-          <div class="card-badge">{{ item.badge }}</div>
-          <div class="card-title">{{ item.name }}</div>
-        </div>
-        <div class="card-label">{{ item.name }}</div>
+        ⚙
       </button>
-    </section>
+      <button
+        type="button"
+        class="icon-button"
+        aria-label="退出应用"
+        @click="$emit('close-window')"
+      >
+        ✕
+      </button>
+    </div>
+  </header>
+
+  <section class="hero-panel">
+    <span class="hero-line hero-line-top" />
+    <div class="time-block">
+      <div class="time-value">{{ currentTime }}</div>
+      <div class="time-date">{{ currentDate }}</div>
+    </div>
+    <span class="hero-line hero-line-bottom" />
+  </section>
+
+  <section class="card-grid" aria-label="快捷入口">
+    <button
+      v-for="(item, index) in shortcuts"
+      :key="item.name"
+      type="button"
+      class="site-card"
+      :class="[item.theme, { 'is-selected': selectedIndex === index }]"
+      :tabindex="selectedIndex === index ? 0 : -1"
+      :ref="(element) => setCardRef(element, index)"
+      @click="$emit('open-site', item)"
+      @focus="$emit('focus-card', index)"
+    >
+      <div class="card-art">
+        <div class="card-badge">{{ item.badge }}</div>
+        <div class="card-title">{{ item.name }}</div>
+      </div>
+      <div class="card-label">{{ item.name }}</div>
+    </button>
+  </section>
 </template>
 
 <script lang="ts" setup>
@@ -69,7 +69,7 @@ defineProps<{
 }>();
 
 defineEmits<{
-  'refresh-time': [];
+  'open-settings': [];
   'close-window': [];
   'open-site': [item: Shortcut];
   'focus-card': [index: number];

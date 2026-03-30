@@ -1,13 +1,22 @@
 ﻿<template>
-  <main class="home-shell" :class="{ 'is-browser-open': !!activeUrl }" tabindex="0" @keydown="handleKeydown">
+  <main class="home-shell" :class="{ 'is-browser-open': !!activeUrl }" tabindex="0" @keydown="handleKeydown" @keydown.capture="handleSettingsKeydown">
+    <SettingsPanel
+      v-if="showSettings"
+      :active-menu="activeSettingsMenu"
+      :settings="settings"
+      @back="closeSettings"
+      @select-menu="activeSettingsMenu = $event"
+      @update-setting="saveSettings"
+    />
+
     <HomeLanding
-      v-if="!activeUrl"
+      v-else-if="!activeUrl"
       :current-time="currentTime"
       :current-date="currentDate"
       :shortcuts="shortcuts"
       :selected-index="selectedIndex"
       :set-card-ref="setCardRef"
-      @refresh-time="updateTime"
+      @open-settings="openSettings"
       @close-window="closeWindow"
       @open-site="openSite"
       @focus-card="selectedIndex = $event"
@@ -35,14 +44,18 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue';
 import HomeBrowser from './components/HomeBrowser.vue';
 import HomeLanding from './components/HomeLanding.vue';
+import SettingsPanel from './components/SettingsPanel.vue';
 import { shortcuts, type Shortcut } from './homePageShared.ts';
 import { findBrowserPlugin } from './plugins/browserPlugins.ts';
+import { defaultSettings, type AppSettings } from './settings.ts';
 
 type IpcRendererLike = {
   on: (channel: string, listener: (_event: unknown, payload: { key: string }) => void) => void;
   removeListener: (channel: string, listener: (_event: unknown, payload: { key: string }) => void) => void;
   invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
 };
+
+type SettingsMenuKey = 'general' | 'site-management' | 'add-site' | 'add-local-app' | 'wallpaper';
 
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRendererLike } })
   .require?.('electron')?.ipcRenderer ?? null) as IpcRendererLike | null;
@@ -51,6 +64,9 @@ const now = ref(new Date());
 const selectedIndex = ref(0);
 const activeUrl = ref('');
 const activeTitle = ref('');
+const showSettings = ref(false);
+const activeSettingsMenu = ref<SettingsMenuKey>('general');
+const settings = ref<AppSettings>({ ...defaultSettings });
 const cardRefs = ref<HTMLButtonElement[]>([]);
 const backButtonRef = ref<HTMLButtonElement | null>(null);
 const webviewRef = ref<Electron.WebviewTag | null>(null);
@@ -90,7 +106,7 @@ const currentTime = computed(() =>
 
 const activePlugin = computed(() => findBrowserPlugin(activeUrl.value));
 const currentDate = computed(() => formatter.format(now.value));
-const isLiveMenuAvailable = computed(() => activePlugin.value?.supportsLiveMenu ?? false);
+const isLiveMenuAvailable = computed(() => activePlugin.value?.manifest.capabilities.liveMenu ?? false);
 const currentLiveItems = computed(() => liveMenuGroups.value[liveMenuGroupIndex.value]?.items ?? []);
 const currentLiveItemIndex = computed(() => liveMenuItemIndices.value[liveMenuGroupIndex.value] ?? 0);
 const liveMenuHeading = computed(() => currentLiveChannel.value || liveMenuGroups.value[liveMenuGroupIndex.value]?.label || '');
@@ -99,9 +115,22 @@ function updateTime() {
   now.value = new Date();
 }
 
+function openSettings() {
+  showSettings.value = true;
+}
+
+function closeSettings() {
+  showSettings.value = false;
+
+  nextTick(() => {
+    focusSelectedCard();
+  });
+}
+
 function openSite(item: Shortcut) {
   activeUrl.value = item.url;
   activeTitle.value = item.name;
+  showSettings.value = false;
   closeLiveMenu();
   currentLiveChannel.value = '';
   currentPluginId.value = '';
@@ -110,6 +139,19 @@ function openSite(item: Shortcut) {
   nextTick(() => {
     backButtonRef.value?.focus();
   });
+}
+
+function openConfiguredModule() {
+  if (!settings.value.openModuleOnLaunch || !settings.value.launchModuleId) {
+    return;
+  }
+
+  const targetShortcut = shortcuts.find((item) => item.url === settings.value.launchModuleId);
+  if (!targetShortcut) {
+    return;
+  }
+
+  openSite(targetShortcut);
 }
 
 function goHome() {
@@ -231,6 +273,23 @@ async function savePluginConfig(pluginId: string, config: Record<string, unknown
   await ipcRenderer?.invoke('plugin-config:set', pluginId, config);
 }
 
+async function loadSettings() {
+  const response = await ipcRenderer?.invoke('settings:get');
+  settings.value = {
+    ...defaultSettings,
+    ...((response as Partial<AppSettings> | undefined) ?? {})
+  };
+}
+
+async function saveSettings(value: Partial<AppSettings>) {
+  const response = await ipcRenderer?.invoke('settings:set', value);
+  settings.value = {
+    ...settings.value,
+    ...value,
+    ...((response as Partial<AppSettings> | undefined) ?? {})
+  };
+}
+
 async function ensureActivePluginReady() {
   const webview = webviewRef.value;
   const plugin = activePlugin.value;
@@ -238,15 +297,18 @@ async function ensureActivePluginReady() {
     return null;
   }
 
-  if (currentPluginId.value !== plugin.id) {
-    currentPluginConfig.value = await loadPluginConfig(plugin.id);
-    currentPluginId.value = plugin.id;
+  if (currentPluginId.value !== plugin.manifest.id) {
+    currentPluginConfig.value = {
+      ...plugin.manifest.defaultConfig,
+      ...(await loadPluginConfig(plugin.manifest.id))
+    };
+    currentPluginId.value = plugin.manifest.id;
   }
 
   try {
     await webview.executeJavaScript(plugin.buildInitScript(currentPluginConfig.value), true);
   } catch (error) {
-    console.error(`初始化插件 ${plugin.id} 失败:`, error);
+    console.error(`初始化插件 ${plugin.manifest.id} 失败:`, error);
     return null;
   }
 
@@ -256,7 +318,7 @@ async function ensureActivePluginReady() {
 async function fetchLiveMenuData() {
   const webview = webviewRef.value;
   const plugin = activePlugin.value;
-  if (!webview || !plugin?.supportsLiveMenu) {
+  if (!webview || !plugin?.manifest.capabilities.liveMenu) {
     return;
   }
 
@@ -272,7 +334,7 @@ async function fetchLiveMenuData() {
 
     applyLiveMenuGroups(result as { currentChannel?: string; 央视频道?: string[]; 卫视频道?: string[] });
   } catch (error) {
-    console.error(`获取插件 ${plugin.id} 菜单数据失败:`, error);
+    console.error(`获取插件 ${plugin.manifest.id} 菜单数据失败:`, error);
     applyLiveMenuGroups({});
   }
 }
@@ -280,7 +342,7 @@ async function fetchLiveMenuData() {
 async function selectLiveChannel(channelName: string) {
   const webview = webviewRef.value;
   const plugin = activePlugin.value;
-  if (!webview || !plugin?.supportsLiveMenu) {
+  if (!webview || !plugin?.manifest.capabilities.liveMenu) {
     return;
   }
 
@@ -297,14 +359,14 @@ async function selectLiveChannel(channelName: string) {
       }, 1200);
     }
   } catch (error) {
-    console.error(`插件 ${plugin.id} 切换频道失败:`, error);
+    console.error(`插件 ${plugin.manifest.id} 切换频道失败:`, error);
   }
 }
 
 async function adjustActivePluginVolume(delta: number) {
   const webview = webviewRef.value;
   const plugin = activePlugin.value;
-  if (!webview || !plugin?.supportsVolume) {
+  if (!webview || !plugin?.manifest.capabilities.volumeControl) {
     return;
   }
 
@@ -313,13 +375,13 @@ async function adjustActivePluginVolume(delta: number) {
     const volume = await webview.executeJavaScript(plugin.buildAdjustVolumeScript(delta), true);
 
     if (typeof volume === 'number') {
-      await savePluginConfig(plugin.id, {
+      await savePluginConfig(plugin.manifest.id, {
         ...currentPluginConfig.value,
         volume
       });
     }
   } catch (error) {
-    console.error(`插件 ${plugin.id} 调整音量失败:`, error);
+    console.error(`插件 ${plugin.manifest.id} 调整音量失败:`, error);
   }
 }
 
@@ -330,12 +392,38 @@ function handleBrowserReady() {
   }
 
   void ensureActivePluginReady();
-  if (plugin.supportsLiveMenu) {
+  if (plugin.manifest.capabilities.liveMenu) {
     void fetchLiveMenuData();
   }
 }
 
+function handleSettingsKeydown(event: KeyboardEvent) {
+  // 在捕获阶段处理设置页面的键盘事件
+  if (showSettings.value && !activeUrl.value) {
+    // 只拦截 Esc 和 Backspace，其他事件让它继续传播到 SettingsPanel
+    if (event.key === 'Escape' || event.key === 'Backspace') {
+      event.preventDefault();
+      event.stopPropagation();
+      closeSettings();
+      return;
+    }
+    // 其他按键不拦截，让它们自然传递给 SettingsPanel
+  }
+}
+
 function handleKeydown(event: KeyboardEvent) {
+  if (showSettings.value && !activeUrl.value) {
+    // 设置页面的键盘事件由 SettingsPanel 自己处理
+    // 只拦截 Esc 和 Backspace 返回主页
+    console.log(event.key)
+    if (event.key === 'Escape' || event.key === 'Backspace') {
+      event.preventDefault();
+      closeSettings();
+    }
+    // 其他按键事件不拦截，让它们自然传递给 SettingsPanel
+    return;
+  }
+
   if (activeUrl.value) {
     if (liveMenuVisible.value) {
       if (event.key === 'Escape' || event.key === 'Backspace') {
@@ -435,10 +523,13 @@ function closeWindow() {
   window.close();
 }
 
-onMounted(() => {
+onMounted(async () => {
   updateTime();
   timer = window.setInterval(updateTime, 1000);
   ipcRenderer?.on('app-keydown', handleForwardedKeydown);
+
+  await loadSettings();
+  openConfiguredModule();
 
   nextTick(() => {
     focusSelectedCard();

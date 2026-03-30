@@ -13,12 +13,34 @@ const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
 const rendererHtmlPath = path.resolve(__dirname, '../index.html');
 const forwardedKeys = new Set(['Enter', ' ', 'Escape', 'Backspace', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '-', '_', '=', '+']);
 
+let isSettingsPanelFocused = false;
+
 let win: InstanceType<typeof BrowserWindow>;
 let tray: InstanceType<typeof Tray> | null = null;
 let isQuitting = false;
 
+type HomeMode = 'tv' | 'game';
+
+type AppSettings = {
+    launchModuleId: string;
+    openModuleOnLaunch: boolean;
+    startAtLogin: boolean;
+    homeMode: HomeMode;
+};
+
+const defaultSettings: AppSettings = {
+    launchModuleId: '',
+    openModuleOnLaunch: false,
+    startAtLogin: false,
+    homeMode: 'tv'
+};
+
 function getPluginConfigPath() {
     return path.join(app.getPath('userData'), 'plugin-config.json');
+}
+
+function getAppSettingsPath() {
+    return path.join(app.getPath('userData'), 'app-settings.json');
 }
 
 function readPluginConfigFile() {
@@ -41,9 +63,65 @@ function writePluginConfigFile(config: Record<string, Record<string, unknown>>) 
     fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8');
 }
 
+function readAppSettingsFile() {
+    const filePath = getAppSettingsPath();
+    if (!fs.existsSync(filePath)) {
+        return {
+            ...defaultSettings,
+            startAtLogin: app.getLoginItemSettings().openAtLogin
+        };
+    }
+
+    try {
+        const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Partial<AppSettings>;
+        return {
+            ...defaultSettings,
+            ...raw,
+            startAtLogin: app.getLoginItemSettings().openAtLogin
+        };
+    } catch (error) {
+        console.error('读取应用设置失败:', error);
+        return {
+            ...defaultSettings,
+            startAtLogin: app.getLoginItemSettings().openAtLogin
+        };
+    }
+}
+
+function writeAppSettingsFile(settings: AppSettings) {
+    const filePath = getAppSettingsPath();
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf-8');
+}
+
+function persistAppSettings(value: Partial<AppSettings>) {
+    const nextSettings = {
+        ...readAppSettingsFile(),
+        ...value
+    };
+
+    app.setLoginItemSettings({
+        openAtLogin: nextSettings.startAtLogin,
+        path: process.execPath
+    });
+
+    nextSettings.startAtLogin = app.getLoginItemSettings().openAtLogin;
+    writeAppSettingsFile(nextSettings);
+    return nextSettings;
+}
+
 function forwardKeyInput(target: InstanceType<typeof BrowserWindow>['webContents']) {
     target.on('before-input-event', (event, input) => {
-        if (input.type !== 'keyDown' || !forwardedKeys.has(input.key)) {
+        if (input.type !== 'keyDown') {
+            return;
+        }
+        
+        // 如果设置面板有焦点，不拦截任何按键，让浏览器默认行为处理
+        if (isSettingsPanelFocused) {
+            return;
+        }
+        
+        if (!forwardedKeys.has(input.key)) {
             return;
         }
 
@@ -170,6 +248,19 @@ function createTray() {
 }
 
 app.whenReady().then(() => {
+    ipcMain.handle('settings:get', () => {
+        return readAppSettingsFile();
+    });
+
+    ipcMain.handle('settings:set', (_event, value: Partial<AppSettings>) => {
+        return persistAppSettings(value);
+    });
+    
+    // 监听设置面板焦点状态
+    ipcMain.on('settings-panel:focus-changed', (event, isFocused) => {
+        isSettingsPanelFocused = isFocused;
+    });
+
     ipcMain.handle('plugin-config:get', (_event, pluginId: string) => {
         const config = readPluginConfigFile();
         return config[pluginId] ?? {};
