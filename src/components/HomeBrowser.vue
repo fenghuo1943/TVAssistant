@@ -2,9 +2,11 @@
   <section class="browser-shell">
     <div class="browser-frame">
       <webview
+        :ref="setWebviewRef"
         class="browser-view"
         :src="activeUrl"
         allowpopups="false"
+        @dom-ready="$emit('browser-ready')"
       />
       <div
         v-if="showLiveMenu"
@@ -12,7 +14,7 @@
         aria-label="直播频道菜单"
       >
         <div class="live-menu-panel">
-          <div class="live-menu-heading">{{ liveMenuGroups[activeLiveGroupIndex]?.label }}</div>
+          <div class="live-menu-heading">{{ liveMenuHeading }}</div>
 
           <div class="live-menu-columns">
             <div class="live-menu-column live-menu-column-left">
@@ -40,6 +42,7 @@
                   'is-selected': index === activeLiveItemIndex,
                   'is-active': activeLiveColumn === 'item' && index === activeLiveItemIndex
                 }"
+                @click="$emit('select-live-channel', item)"
               >
                 {{ item }}
               </button>
@@ -67,6 +70,7 @@ import type { ComponentPublicInstance } from 'vue';
 defineProps<{
   activeUrl: string;
   setBackButtonRef: (element: Element | ComponentPublicInstance | null) => void;
+  setWebviewRef: (element: Element | ComponentPublicInstance | null) => void;
   showLiveMenu: boolean;
   liveMenuGroups: readonly {
     label: string;
@@ -75,10 +79,13 @@ defineProps<{
   activeLiveGroupIndex: number;
   activeLiveColumn: 'group' | 'item';
   activeLiveItemIndex: number;
+  liveMenuHeading: string;
 }>();
 
 defineEmits<{
+  'browser-ready': [];
   'go-home': [];
+  'select-live-channel': [channelName: string];
 }>();
 </script>
 
@@ -134,6 +141,7 @@ defineEmits<{
     0 28px 60px rgba(0, 0, 0, 0.42),
     0 0 0 1px rgba(98, 238, 177, 0.08) inset;
   backdrop-filter: blur(12px);
+  pointer-events: auto;
 }
 
 .live-menu-heading {
@@ -172,8 +180,8 @@ defineEmits<{
   color: rgba(246, 249, 250, 0.9);
   font-size: 28px;
   text-align: left;
-  cursor: default;
-  pointer-events: none;
+  cursor: pointer;
+  pointer-events: auto;
   transition:
     border-color 0.18s ease,
     box-shadow 0.18s ease,

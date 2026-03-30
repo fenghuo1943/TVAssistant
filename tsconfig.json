@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "moduleDetection": "force"
   },
-  "include": ["electron/**/*.ts", "src/**/*.ts", "src/**/*.vue"]
+  "include": ["electron/**/*.ts", "src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue"]
 }

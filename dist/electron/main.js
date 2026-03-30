@@ -4,15 +4,46 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { DiscoveryService } from "./services/discovery.js";
 import { NetworkService } from "./services/NetworkService.js";
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell } = electron;
+const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } = electron;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isDevelopment = process.env.NODE_ENV === 'development';
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
 const rendererHtmlPath = path.resolve(__dirname, '../index.html');
+const forwardedKeys = new Set(['Enter', ' ', 'Escape', 'Backspace', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '-', '_', '=', '+']);
 let win;
 let tray = null;
 let isQuitting = false;
+function getPluginConfigPath() {
+    return path.join(app.getPath('userData'), 'plugin-config.json');
+}
+function readPluginConfigFile() {
+    const filePath = getPluginConfigPath();
+    if (!fs.existsSync(filePath)) {
+        return {};
+    }
+    try {
+        return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    }
+    catch (error) {
+        console.error('读取插件配置失败:', error);
+        return {};
+    }
+}
+function writePluginConfigFile(config) {
+    const filePath = getPluginConfigPath();
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, JSON.stringify(config, null, 2), 'utf-8');
+}
+function forwardKeyInput(target) {
+    target.on('before-input-event', (event, input) => {
+        if (input.type !== 'keyDown' || !forwardedKeys.has(input.key)) {
+            return;
+        }
+        event.preventDefault();
+        win.webContents.send('app-keydown', { key: input.key });
+    });
+}
 function resolveCustomIconPath() {
     return [
         path.resolve(__dirname, '../assets/tray-icon.png'),
@@ -51,6 +82,10 @@ function createWindow() {
     win.webContents.setWindowOpenHandler(({ url }) => {
         shell.openExternal(url);
         return { action: 'deny' };
+    });
+    forwardKeyInput(win.webContents);
+    win.webContents.on('did-attach-webview', (_event, guestContents) => {
+        forwardKeyInput(guestContents);
     });
     console.log('Loading URL:', isDevelopment ? devServerUrl : rendererHtmlPath);
     if (isDevelopment) {
@@ -105,6 +140,16 @@ function createTray() {
     });
 }
 app.whenReady().then(() => {
+    ipcMain.handle('plugin-config:get', (_event, pluginId) => {
+        const config = readPluginConfigFile();
+        return config[pluginId] ?? {};
+    });
+    ipcMain.handle('plugin-config:set', (_event, pluginId, value) => {
+        const config = readPluginConfigFile();
+        config[pluginId] = value;
+        writePluginConfigFile(config);
+        return config[pluginId];
+    });
     createWindow();
     createTray();
     const discovery = new DiscoveryService(9999, console.log);
