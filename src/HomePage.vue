@@ -45,7 +45,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, type ComponentPubl
 import HomeBrowser from './components/HomeBrowser.vue';
 import HomeLanding from './components/HomeLanding.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
-import { shortcuts, type Shortcut } from './homePageShared.ts';
+import { defaultShortcuts, type Shortcut } from './settings.ts';
 import { findBrowserPlugin } from './plugins/browserPlugins.ts';
 import { defaultSettings, type AppSettings } from './settings.ts';
 
@@ -60,6 +60,11 @@ type SettingsMenuKey = 'general' | 'site-management' | 'add-site' | 'add-local-a
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRendererLike } })
   .require?.('electron')?.ipcRenderer ?? null) as IpcRendererLike | null;
 
+const shortcuts = computed(() => {
+  return defaultShortcuts.filter(shortcut => 
+    settings.value.enabledShortcuts.includes(shortcut.url)
+  );
+});
 const now = ref(new Date());
 const selectedIndex = ref(0);
 const activeUrl = ref('');
@@ -146,7 +151,7 @@ function openConfiguredModule() {
     return;
   }
 
-  const targetShortcut = shortcuts.find((item) => item.url === settings.value.launchModuleId);
+  const targetShortcut = defaultShortcuts.find((item) => item.url === settings.value.launchModuleId);
   if (!targetShortcut) {
     return;
   }
@@ -190,7 +195,8 @@ function focusSelectedCard() {
 }
 
 function moveSelection(offset: number) {
-  const total = shortcuts.length;
+  const total = shortcuts.value.length;
+  if (total === 0) return;
   selectedIndex.value = (selectedIndex.value + offset + total) % total;
   focusSelectedCard();
 }
@@ -511,7 +517,9 @@ function handleKeydown(event: KeyboardEvent) {
 
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
-    openSite(shortcuts[selectedIndex.value]);
+    if (shortcuts.value.length > 0) {
+      openSite(shortcuts.value[selectedIndex.value]);
+    }
   }
 }
 

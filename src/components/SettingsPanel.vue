@@ -94,7 +94,39 @@
           </div>
         </section>
 
-        <section v-else class="settings-card settings-placeholder">
+        <section v-else-if="activeMenu === 'site-management'" class="settings-card" role="tabpanel">
+          <div class="site-list">
+            <div
+              v-for="(site, index) in availableShortcuts"
+              :key="site.url"
+              class="site-item"
+              :class="{ 'is-focused': focusedSiteIndex === index }"
+              :ref="(el) => setSiteItemRef(el as HTMLDivElement, index)"
+              :tabindex="focusedSiteIndex === index ? 0 : -1"
+            >
+              <div class="site-info">
+                <span class="site-icon">{{ getSiteIcon(site.name) }}</span>
+                <span class="site-name">{{ site.name }}</span>
+              </div>
+              <div class="site-status">
+                <span class="status-text" :class="site.isEnabled ? 'is-enabled' : 'is-disabled'">
+                  {{ site.isEnabled ? '已添加' : '未添加' }}
+                </span>
+                <button
+                  type="button"
+                  class="action-button"
+                  :class="[site.isEnabled ? 'remove' : 'add', { 'is-focused': focusedButtonIndex === index }]"
+                  :tabindex="focusedButtonIndex === index ? 0 : -1"
+                  @click.stop="toggleSite(site)"
+                >
+                  {{ site.isEnabled ? '移除' : '添加' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section v-else class="settings-card settings-placeholder" role="tabpanel">
           <div class="placeholder-title">{{ currentMenuLabel }}</div>
           <div class="placeholder-desc">该页面内容稍后添加。</div>
         </section>
@@ -105,12 +137,18 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
-import { launchModuleOptions, type AppSettings } from '../settings.ts';
+import { defaultShortcuts, launchModuleOptions, type AppSettings, type Shortcut } from '../settings.ts';
 
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: { send: (channel: string, ...args: unknown[]) => void } } })
   .require?.('electron')?.ipcRenderer ?? null);
 
 type SettingsMenuKey = 'general' | 'site-management' | 'add-site' | 'add-local-app' | 'wallpaper';
+
+type SiteItem = {
+  name: string;
+  url: string;
+  isEnabled: boolean;
+};
 
 const props = defineProps<{
   activeMenu: SettingsMenuKey;
@@ -122,6 +160,15 @@ const emit = defineEmits<{
   'select-menu': [menu: SettingsMenuKey];
   'update-setting': [value: Partial<AppSettings>];
 }>();
+
+// 计算可用的快捷方式列表
+const availableShortcuts = computed<SiteItem[]>(() => {
+  return defaultShortcuts.map(shortcut => ({
+    name: shortcut.name,
+    url: shortcut.url,
+    isEnabled: props.settings.enabledShortcuts.includes(shortcut.url)
+  }));
+});
 
 const menuItems: Array<{ key: SettingsMenuKey; label: string }> = [
   { key: 'general', label: '常规' },
@@ -137,8 +184,10 @@ const currentMenuLabel = computed(() => {
 
 // 焦点状态管理
 const focusedSidebarIndex = ref(0);
-const focusedContentIndex = ref(-1); // -1 表示未聚焦内容区
+const focusedContentIndex = ref(-1); // -1 表示未聚焦内容区，0 表示聚焦到按钮
 const modeFocusedIndex = ref(0);
+const focusedSiteIndex = ref(0); // 网址管理页面的焦点索引
+const focusedButtonIndex = ref(-1); // -1 表示未聚焦按钮，>=0 表示聚焦到具体网址项的按钮
 
 // 引用元素
 const settingsShellRef = ref<HTMLElement | null>(null);
@@ -148,6 +197,7 @@ const launchModuleSelectRef = ref<HTMLSelectElement | null>(null);
 const startAtLoginSwitchRef = ref<HTMLButtonElement | null>(null);
 const gameModeOptionRef = ref<HTMLButtonElement | null>(null);
 const tvModeOptionRef = ref<HTMLButtonElement | null>(null);
+const siteItemRefs = ref<HTMLDivElement[]>([]);
 
 function setSidebarItemRef(el: HTMLButtonElement, index: number) {
   if (el) {
@@ -155,13 +205,27 @@ function setSidebarItemRef(el: HTMLButtonElement, index: number) {
   }
 }
 
+function setSiteItemRef(el: HTMLDivElement, index: number) {
+  if (el) {
+    siteItemRefs.value[index] = el;
+  }
+}
+
 function focusSidebar(index: number) {
   const total = menuItems.length;
   focusedSidebarIndex.value = (index + total) % total;
   focusedContentIndex.value = -1;
+  focusedButtonIndex.value = -1; // 重置按钮焦点
+  
+  const selectedMenuKey = menuItems[focusedSidebarIndex.value].key;
   
   // 自动切换到选中的菜单
-  emit('select-menu', menuItems[focusedSidebarIndex.value].key);
+  emit('select-menu', selectedMenuKey);
+  
+  // 重置网址管理页面的焦点索引，但不立即聚焦
+  if (selectedMenuKey === 'site-management') {
+    focusedSiteIndex.value = 0;
+  }
   
   nextTick(() => {
     sidebarItemRefs.value[focusedSidebarIndex.value]?.focus();
@@ -187,6 +251,53 @@ function focusContent(index: number) {
   });
 }
 
+function focusSite(index: number) {
+  const total = availableShortcuts.value.length;
+  focusedSiteIndex.value = (index + total) % total;
+  focusedContentIndex.value = -1;
+  focusedButtonIndex.value = -1; // 重置按钮焦点
+  focusedSidebarIndex.value = -1; // 离开侧边栏，进入内容区
+  console.log('focusSite called, index:', index, 'total:', total, 'refs length:', siteItemRefs.value.length);
+  console.log('siteItemRefs[0]:', siteItemRefs.value[0]);
+  
+  nextTick(() => {
+    console.log('nextTick - siteItemRefs[0]:', siteItemRefs.value[0]);
+    const element = siteItemRefs.value[focusedSiteIndex.value];
+    console.log('Trying to focus element:', element);
+    if (element) {
+      element.focus();
+      // 滚动到可视区域
+      element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      console.log('Focused and scrolled!');
+    }
+  });
+}
+
+function getSiteIcon(name: string): string {
+  const iconMap: Record<string, string> = {
+    'TV 直播': '📺',
+    '央视片库': '🎬',
+    '抖音': '🎵',
+    '腾讯视频': '🎞️'
+  };
+  return iconMap[name] || '🌐';
+}
+
+function toggleSite(site: SiteItem) {
+  const currentUrls = props.settings.enabledShortcuts;
+  let newUrls: string[];
+  
+  if (site.isEnabled) {
+    // 移除
+    newUrls = currentUrls.filter(url => url !== site.url);
+  } else {
+    // 添加
+    newUrls = [...currentUrls, site.url];
+  }
+  
+  emit('update-setting', { enabledShortcuts: newUrls });
+}
+
 function handleKeydown(event: KeyboardEvent) {
   const { key } = event;
   
@@ -207,8 +318,12 @@ function handleKeydown(event: KeyboardEvent) {
     if (key === 'ArrowRight') {
       event.preventDefault();
       // 切换到内容区的第一个选项
-      if (props.activeMenu === 'general') {
+      const currentMenuKey = menuItems[focusedSidebarIndex.value].key;
+      if (currentMenuKey === 'general') {
         focusContent(0);
+      } else if (currentMenuKey === 'site-management') {
+        
+        focusSite(0);
       }
       return;
     }
@@ -216,8 +331,11 @@ function handleKeydown(event: KeyboardEvent) {
     if (key === 'Enter') {
       event.preventDefault();
       // 按回车时切换到内容区的第一个选项
-      if (props.activeMenu === 'general') {
+      const currentMenuKey = menuItems[focusedSidebarIndex.value].key;
+      if (currentMenuKey === 'general') {
         focusContent(0);
+      } else if (currentMenuKey === 'site-management') {
+        focusSite(0);
       }
       return;
     }
@@ -225,7 +343,128 @@ function handleKeydown(event: KeyboardEvent) {
     return;
   }
   
-  // 如果在内容区
+  // 如果在网址管理页面
+  if(props.activeMenu === 'site-management'){
+    console.log('focusedSiteIndex:', focusedSiteIndex.value);
+  }
+  if ((props.activeMenu === 'site-management' || focusedSiteIndex.value >= 0) && focusedSiteIndex.value >= 0) {
+    // 如果焦点在按钮上
+    console.log('focusedButtonIndex:', focusedButtonIndex.value);
+    if (focusedButtonIndex.value >= 0) {
+      if (key === 'ArrowLeft') {
+        event.preventDefault();
+        // 回到网址项
+        focusedButtonIndex.value = -1;
+        nextTick(() => {
+          siteItemRefs.value[focusedSiteIndex.value]?.focus();
+        });
+        return;
+      }
+      
+      if (key === 'ArrowUp') {
+        event.preventDefault();
+        // 移动到上一个按钮
+        if (focusedButtonIndex.value > 0) {
+          focusedButtonIndex.value = focusedButtonIndex.value - 1;
+          nextTick(() => {
+            const button = siteItemRefs.value[focusedButtonIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
+            button?.focus();
+          });
+        } else {
+          // 回到侧边栏，保持当前选中的菜单项
+          focusedButtonIndex.value = -1;
+          const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+          focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+        }
+        return;
+      }
+      
+      if (key === 'ArrowDown') {
+        event.preventDefault();
+        // 移动到下一个按钮
+        if (focusedButtonIndex.value < availableShortcuts.value.length - 1) {
+          focusedButtonIndex.value = focusedButtonIndex.value + 1;
+          nextTick(() => {
+            const button = siteItemRefs.value[focusedButtonIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
+            button?.focus();
+          });
+        } else {
+          // 回到侧边栏，保持当前选中的菜单项
+          focusedButtonIndex.value = -1;
+          const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+          focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+        }
+        return;
+      }
+      
+      if (key === 'Enter') {
+        event.preventDefault();
+        // 触发当前聚焦按钮的点击
+        const currentSite = availableShortcuts.value[focusedButtonIndex.value];
+        toggleSite(currentSite);
+        return;
+      }
+      
+      return;
+    }
+    
+    // 焦点在网址项上
+    if (key === 'ArrowUp') {
+      event.preventDefault();
+      if (focusedSiteIndex.value > 0) {
+        focusSite(focusedSiteIndex.value - 1);
+      } else {
+        // 回到侧边栏，保持当前选中的菜单项
+        const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+        focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+      }
+      return;
+    }
+    
+    if (key === 'ArrowDown') {
+      event.preventDefault();
+      if (focusedSiteIndex.value < availableShortcuts.value.length - 1) {
+        focusSite(focusedSiteIndex.value + 1);
+      } else {
+        // 回到侧边栏，保持当前选中的菜单项
+        const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+        focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+      }
+      return;
+    }
+    
+    if (key === 'ArrowLeft') {
+      event.preventDefault();
+      // 回到侧边栏，保持当前选中的菜单项
+      const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+      focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+      return;
+    }
+    
+    if (key === 'ArrowRight') {
+      event.preventDefault();
+      console.log('ArrowRight123');
+      // 聚焦到当前项的添加/移除按钮
+      focusedButtonIndex.value = focusedSiteIndex.value;
+      nextTick(() => {
+        const button = siteItemRefs.value[focusedButtonIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
+        button?.focus();
+      });
+      return;
+    }
+    
+    if (key === 'Enter') {
+      event.preventDefault();
+      // 触发当前聚焦项的按钮点击
+      const currentSite = availableShortcuts.value[focusedSiteIndex.value];
+      toggleSite(currentSite);
+      return;
+    }
+    
+    return;
+  }
+  
+  // 如果在内容区（常规设置）
   if (focusedContentIndex.value >= 0) {
     if (key === 'ArrowUp') {
       event.preventDefault();
@@ -264,6 +503,7 @@ function handleKeydown(event: KeyboardEvent) {
     if (key === 'ArrowRight') {
       event.preventDefault();
       // 如果在模式选择上，切换左右
+      console.log('ArrowRight12322');
       if (focusedContentIndex.value === 2) {
         modeFocusedIndex.value = modeFocusedIndex.value === 0 ? 1 : 0;
         nextTick(() => {
@@ -560,6 +800,112 @@ onUnmounted(() => {
   justify-content: center;
   gap: 12px;
   color: rgba(233, 239, 244, 0.82);
+}
+
+.site-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.site-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+  outline: none;
+}
+
+.site-item:hover,
+.site-item:focus-visible,
+.site-item.is-focused {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(42, 149, 232, 0.5);
+  transform: translateX(2px);
+}
+
+.site-item.is-focused {
+  box-shadow: 0 0 0 3px rgba(42, 149, 232, 0.3);
+}
+
+.site-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.site-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.site-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: rgba(247, 251, 255, 0.94);
+}
+
+.site-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.status-text.is-enabled {
+  color: rgba(99, 194, 111, 0.92);
+}
+
+.status-text.is-disabled {
+  color: rgba(210, 220, 230, 0.68);
+}
+
+.action-button {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+.action-button.add {
+  background: linear-gradient(135deg, #2a95e8, #1882d8);
+  color: #ffffff;
+}
+
+.action-button.remove {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(241, 245, 248, 0.92);
+}
+
+.action-button:hover,
+.action-button:focus-visible,
+.action-button.is-focused {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.action-button.add:hover,
+.action-button.add:focus-visible,
+.action-button.add.is-focused {
+  background: linear-gradient(135deg, #3aa3f0, #1c90e8);
+}
+
+.action-button.remove:hover,
+.action-button.remove:focus-visible,
+.action-button.remove.is-focused {
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .placeholder-title {

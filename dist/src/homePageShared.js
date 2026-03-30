@@ -1,27 +1,3 @@
-export const shortcuts = [
-    {
-        name: 'TV直播',
-        badge: 'LIVE',
-        //url: 'https://tv.cctv.com/live/',
-        url: 'https://www.yangshipin.cn/tv/home',
-        theme: 'theme-live'
-    },
-    {
-        name: '央视片库',
-        badge: 'CCTV',
-        url: 'https://tv.cctv.com/',
-        theme: 'theme-cctv'
-    },
-    {
-        name: '抖音',
-        badge: 'DY',
-        url: 'https://www.douyin.com/',
-        theme: 'theme-douyin'
-    },
-    {
-        name: '腾讯视频',
-        badge: 'QQ',
-        url: 'https://v.qq.com/',
-        theme: 'theme-tencent'
-    }
-];
+export {};
+// 注意：shortcuts 现在由 settings.ts 中的 defaultShortcuts 定义
+// 此文件保留类型定义供其他模块使用
