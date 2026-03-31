@@ -49,7 +49,7 @@ import { defaultShortcuts, type Shortcut } from './settings.ts';
 import { findBrowserPlugin } from './plugins/browserPlugins.ts';
 import { defaultSettings, type AppSettings } from './settings.ts';
 import type { IpcRenderer, PluginConfig, LiveMenuData, BrowserPlugin } from './plugins/types.ts';
-import { withRetry, showError } from './utils/errorHandler.ts';
+import { withRetry, showError, debounce, throttle } from './utils/errorHandler.ts';
 
 type SettingsMenuKey = 'general' | 'site-management' | 'add-site' | 'add-local-app' | 'wallpaper';
 
@@ -407,6 +407,14 @@ async function adjustActivePluginVolume(delta: number): Promise<void> {
     console.error(`插件 ${plugin.manifest.id} 调整音量失败:`, error);
   }
 }
+
+// ==================== 性能优化 ====================
+
+// 使用防抖优化直播菜单数据获取，避免频繁请求
+const debouncedFetchLiveMenu = debounce(fetchLiveMenuData, 500);
+
+// 使用节流优化键盘事件处理，防止过快重复触发
+const throttledHandleKeydown = throttle(handleKeydown, 100);
 
 function handleBrowserReady() {
   const plugin = activePlugin.value;

@@ -128,7 +128,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
  * @param interval 最小间隔时间（毫秒）
  * @returns 节流后的函数
  */
-export function throttle<T extends (...args: unknown[]) => unknown>(
+export function throttle<T extends (...args: any[]) => any>(
   fn: T,
   interval: number
 ): (...args: Parameters<T>) => void {
