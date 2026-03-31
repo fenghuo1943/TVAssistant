@@ -28,7 +28,7 @@
       :set-back-button-ref="setBackButtonRef"
       :set-webview-ref="setWebviewRef"
       :show-live-menu="liveMenu.state.visible"
-      :live-menu-groups="liveMenu.groups"
+      :live-menu-groups="liveMenu.state.groups"
       :active-live-group-index="liveMenu.state.groupIndex"
       :active-live-column="liveMenu.state.column"
       :active-live-item-index="liveMenu.currentItemIndex.value"
@@ -42,6 +42,7 @@
 
 <script lang="ts" setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 import HomeBrowser from './components/HomeBrowser.vue';
 import HomeLanding from './components/HomeLanding.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
@@ -179,12 +180,12 @@ function setCardRef(element: Element | null, index: number) {
   cardRefManager.setRef(element as HTMLButtonElement, index);
 }
 
-function setBackButtonRef(element: Element | null) {
-  backButtonRefManager.setRef(element as HTMLButtonElement);
+function setBackButtonRef(element: Element | ComponentPublicInstance | null) {
+  backButtonRefManager.setRef(element as HTMLButtonElement | ComponentPublicInstance);
 }
 
-function setWebviewRef(element: Element | null) {
-  webviewRefManager.setRef(element as Electron.WebviewTag);
+function setWebviewRef(element: Element | ComponentPublicInstance | null) {
+  webviewRefManager.setRef(element as Electron.WebviewTag | ComponentPublicInstance);
 }
 
 function focusSelectedCard() {
