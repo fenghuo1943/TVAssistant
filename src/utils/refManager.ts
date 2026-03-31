@@ -93,7 +93,7 @@ export function createRefManager<T extends Element = Element>(): RefManager<T> {
  */
 export interface SingleRefManager<T extends Element = Element> {
   ref: Ref<T | null>;
-  setRef: (element: T | null) => void;
+  setRef: (element: T | ComponentPublicInstance | null) => void;
   focus: () => void;
   blur: () => void;
   exists: () => boolean;
@@ -109,8 +109,12 @@ export function createSingleRefManager<T extends Element = Element>(
 ): SingleRefManager<T> {
   const elementRef = ref<T | null>(initialElement) as Ref<T | null>;
   
-  const setRef = (element: T | null) => {
-    elementRef.value = element;
+  const setRef = (element: T | ComponentPublicInstance | null) => {
+    if (element instanceof Element) {
+      elementRef.value = element as T;
+    } else {
+      elementRef.value = null;
+    }
   };
   
   const focus = () => {

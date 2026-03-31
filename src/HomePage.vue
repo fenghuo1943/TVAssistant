@@ -41,17 +41,23 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, type ComponentPublicInstance } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive } from 'vue';
 import HomeBrowser from './components/HomeBrowser.vue';
 import HomeLanding from './components/HomeLanding.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
-import { defaultShortcuts, type Shortcut } from './settings.ts';
 import { findBrowserPlugin } from './plugins/browserPlugins.ts';
-import { defaultSettings, type AppSettings } from './settings.ts';
-import type { IpcRenderer, PluginConfig, LiveMenuData, BrowserPlugin } from './plugins/types.ts';
+import type { IpcRenderer, PluginConfig, BrowserPlugin } from './plugins/types.ts';
 import { withRetry, showError, debounce, throttle } from './utils/errorHandler.ts';
-
-type SettingsMenuKey = 'general' | 'site-management' | 'add-site' | 'add-local-app' | 'wallpaper';
+import { 
+  SETTINGS_MENU_KEYS, 
+  DEFAULT_SHORTCUTS,
+  type SettingsMenuKey 
+} from './constants/index.ts';
+import { 
+  createRefManager, 
+  createSingleRefManager
+} from './utils/refManager.ts';
+import { defaultSettings, type AppSettings, type Shortcut } from './settings.ts';
 
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
   .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
@@ -60,6 +66,11 @@ const ipcRenderer = ((window as typeof window & { require?: (moduleName: string)
 import { useLiveMenu } from './composables/useLiveMenu.ts';
 const liveMenu = useLiveMenu();
 
+// 使用引用管理器
+const cardRefManager = createRefManager<HTMLButtonElement>();
+const backButtonRefManager = createSingleRefManager<HTMLButtonElement>();
+const webviewRefManager = createSingleRefManager<Electron.WebviewTag>();
+
 // 应用状态
 const appState = reactive({
   now: new Date(),
@@ -67,14 +78,9 @@ const appState = reactive({
   activeUrl: '',
   activeTitle: '',
   showSettings: false,
-  activeSettingsMenu: 'general' as SettingsMenuKey,
+  activeSettingsMenu: SETTINGS_MENU_KEYS.GENERAL as SettingsMenuKey,
   settings: { ...defaultSettings } as AppSettings
 });
-
-// 引用管理
-const cardRefs = ref<HTMLButtonElement[]>([]);
-const backButtonRef = ref<HTMLButtonElement | null>(null);
-const webviewRef = ref<Electron.WebviewTag | null>(null);
 
 // 插件相关状态（与 liveMenu 分离）
 const pluginState = reactive({
@@ -93,7 +99,7 @@ const formatter = new Intl.DateTimeFormat('zh-CN', {
 });
 
 const shortcuts = computed(() => {
-  return defaultShortcuts.filter(shortcut => 
+  return DEFAULT_SHORTCUTS.filter((shortcut: Shortcut) => 
     appState.settings.enabledShortcuts.includes(shortcut.url)
   );
 });
@@ -139,7 +145,7 @@ function openSite(item: Shortcut) {
   pluginState.currentPluginConfig = {};
 
   nextTick(() => {
-    backButtonRef.value?.focus();
+    backButtonRefManager.ref.value?.focus();
   });
 }
 
@@ -148,7 +154,7 @@ function openConfiguredModule() {
     return;
   }
 
-  const targetShortcut = defaultShortcuts.find((item) => item.url === appState.settings.launchModuleId);
+  const targetShortcut = DEFAULT_SHORTCUTS.find((item: Shortcut) => item.url === appState.settings.launchModuleId);
   if (!targetShortcut) {
     return;
   }
@@ -170,24 +176,19 @@ function goHome() {
 }
 
 function setCardRef(element: Element | null, index: number) {
-  if (element instanceof HTMLButtonElement) {
-    cardRefs.value[index] = element;
-    return;
-  }
-
-  delete cardRefs.value[index];
+  cardRefManager.setRef(element as HTMLButtonElement, index);
 }
 
-function setBackButtonRef(element: Element | ComponentPublicInstance | null) {
-  backButtonRef.value = element instanceof HTMLButtonElement ? element : null;
+function setBackButtonRef(element: Element | null) {
+  backButtonRefManager.setRef(element as HTMLButtonElement);
 }
 
-function setWebviewRef(element: Element | ComponentPublicInstance | null) {
-  webviewRef.value = element as Electron.WebviewTag | null;
+function setWebviewRef(element: Element | null) {
+  webviewRefManager.setRef(element as Electron.WebviewTag);
 }
 
 function focusSelectedCard() {
-  const card = cardRefs.value[appState.selectedIndex];
+  const card = cardRefManager.getRef(appState.selectedIndex);
   card?.focus();
 }
 
@@ -314,7 +315,7 @@ async function saveSettings(value: Partial<AppSettings>): Promise<void> {
 }
 
 async function ensureActivePluginReady(): Promise<BrowserPlugin | null> {
-  const webview = webviewRef.value;
+  const webview = webviewRefManager.ref.value;
   const plugin = activePlugin.value;
   if (!webview || !plugin) {
     return null;
@@ -339,7 +340,7 @@ async function ensureActivePluginReady(): Promise<BrowserPlugin | null> {
 }
 
 async function fetchLiveMenuData(): Promise<void> {
-  const webview = webviewRef.value;
+  const webview = webviewRefManager.ref.value;
   const plugin = activePlugin.value;
   if (!webview || !plugin?.manifest.capabilities.liveMenu) {
     return;
@@ -363,7 +364,7 @@ async function fetchLiveMenuData(): Promise<void> {
 }
 
 async function selectLiveChannel(channelName: string): Promise<void> {
-  const webview = webviewRef.value;
+  const webview = webviewRefManager.ref.value;
   const plugin = activePlugin.value;
   if (!webview || !plugin?.manifest.capabilities.liveMenu) {
     return;
@@ -387,7 +388,7 @@ async function selectLiveChannel(channelName: string): Promise<void> {
 }
 
 async function adjustActivePluginVolume(delta: number): Promise<void> {
-  const webview = webviewRef.value;
+  const webview = webviewRefManager.ref.value;
   const plugin = activePlugin.value;
   if (!webview || !plugin?.manifest.capabilities.volumeControl) {
     return;
