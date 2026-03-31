@@ -138,9 +138,10 @@
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { defaultShortcuts, launchModuleOptions, type AppSettings, type Shortcut } from '../settings.ts';
+import type { IpcRenderer } from '../plugins/types.ts';
 
-const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: { send: (channel: string, ...args: unknown[]) => void } } })
-  .require?.('electron')?.ipcRenderer ?? null);
+const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
+  .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
 
 type SettingsMenuKey = 'general' | 'site-management' | 'add-site' | 'add-local-app' | 'wallpaper';
 

@@ -48,17 +48,12 @@ import SettingsPanel from './components/SettingsPanel.vue';
 import { defaultShortcuts, type Shortcut } from './settings.ts';
 import { findBrowserPlugin } from './plugins/browserPlugins.ts';
 import { defaultSettings, type AppSettings } from './settings.ts';
-
-type IpcRendererLike = {
-  on: (channel: string, listener: (_event: unknown, payload: { key: string }) => void) => void;
-  removeListener: (channel: string, listener: (_event: unknown, payload: { key: string }) => void) => void;
-  invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
-};
+import type { IpcRenderer, PluginConfig, LiveMenuData, BrowserPlugin } from './plugins/types.ts';
 
 type SettingsMenuKey = 'general' | 'site-management' | 'add-site' | 'add-local-app' | 'wallpaper';
 
-const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRendererLike } })
-  .require?.('electron')?.ipcRenderer ?? null) as IpcRendererLike | null;
+const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
+  .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
 
 const shortcuts = computed(() => {
   return defaultShortcuts.filter(shortcut => 
@@ -269,34 +264,34 @@ function applyLiveMenuGroups(data: { currentChannel?: string; 央视频道?: str
   syncLiveChannelSelection(data.currentChannel ?? '');
 }
 
-async function loadPluginConfig(pluginId: string) {
-  const config = await ipcRenderer?.invoke('plugin-config:get', pluginId);
-  return (config as Record<string, unknown> | undefined) ?? {};
+async function loadPluginConfig(pluginId: string): Promise<PluginConfig> {
+  const config = await ipcRenderer?.invoke<PluginConfig>('plugin-config:get', pluginId);
+  return config ?? {};
 }
 
-async function savePluginConfig(pluginId: string, config: Record<string, unknown>) {
+async function savePluginConfig(pluginId: string, config: PluginConfig): Promise<void> {
   currentPluginConfig.value = config;
   await ipcRenderer?.invoke('plugin-config:set', pluginId, config);
 }
 
-async function loadSettings() {
-  const response = await ipcRenderer?.invoke('settings:get');
+async function loadSettings(): Promise<void> {
+  const response = await ipcRenderer?.invoke<Partial<AppSettings>>('settings:get');
   settings.value = {
     ...defaultSettings,
-    ...((response as Partial<AppSettings> | undefined) ?? {})
+    ...response
   };
 }
 
-async function saveSettings(value: Partial<AppSettings>) {
-  const response = await ipcRenderer?.invoke('settings:set', value);
+async function saveSettings(value: Partial<AppSettings>): Promise<void> {
+  const response = await ipcRenderer?.invoke<Partial<AppSettings>>('settings:set', value);
   settings.value = {
     ...settings.value,
     ...value,
-    ...((response as Partial<AppSettings> | undefined) ?? {})
+    ...response
   };
 }
 
-async function ensureActivePluginReady() {
+async function ensureActivePluginReady(): Promise<BrowserPlugin | null> {
   const webview = webviewRef.value;
   const plugin = activePlugin.value;
   if (!webview || !plugin) {
@@ -321,7 +316,7 @@ async function ensureActivePluginReady() {
   return plugin;
 }
 
-async function fetchLiveMenuData() {
+async function fetchLiveMenuData(): Promise<void> {
   const webview = webviewRef.value;
   const plugin = activePlugin.value;
   if (!webview || !plugin?.manifest.capabilities.liveMenu) {
@@ -345,7 +340,7 @@ async function fetchLiveMenuData() {
   }
 }
 
-async function selectLiveChannel(channelName: string) {
+async function selectLiveChannel(channelName: string): Promise<void> {
   const webview = webviewRef.value;
   const plugin = activePlugin.value;
   if (!webview || !plugin?.manifest.capabilities.liveMenu) {
@@ -369,7 +364,7 @@ async function selectLiveChannel(channelName: string) {
   }
 }
 
-async function adjustActivePluginVolume(delta: number) {
+async function adjustActivePluginVolume(delta: number): Promise<void> {
   const webview = webviewRef.value;
   const plugin = activePlugin.value;
   if (!webview || !plugin?.manifest.capabilities.volumeControl) {
