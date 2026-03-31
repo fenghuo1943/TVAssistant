@@ -1,38 +1,38 @@
 ﻿<template>
-  <main class="home-shell" :class="{ 'is-browser-open': !!activeUrl }" tabindex="0" @keydown="handleKeydown" @keydown.capture="handleSettingsKeydown">
+  <main class="home-shell" :class="{ 'is-browser-open': !!appState.activeUrl }" tabindex="0" @keydown="handleKeydown" @keydown.capture="handleSettingsKeydown">
     <SettingsPanel
-      v-if="showSettings"
-      :active-menu="activeSettingsMenu"
-      :settings="settings"
+      v-if="appState.showSettings"
+      :active-menu="appState.activeSettingsMenu"
+      :settings="appState.settings"
       @back="closeSettings"
-      @select-menu="activeSettingsMenu = $event"
+      @select-menu="appState.activeSettingsMenu = $event"
       @update-setting="saveSettings"
     />
 
     <HomeLanding
-      v-else-if="!activeUrl"
+      v-else-if="!appState.activeUrl"
       :current-time="currentTime"
       :current-date="currentDate"
       :shortcuts="shortcuts"
-      :selected-index="selectedIndex"
+      :selected-index="appState.selectedIndex"
       :set-card-ref="setCardRef"
       @open-settings="openSettings"
       @close-window="closeWindow"
       @open-site="openSite"
-      @focus-card="selectedIndex = $event"
+      @focus-card="appState.selectedIndex = $event"
     />
 
     <HomeBrowser
       v-else
-      :active-url="activeUrl"
+      :active-url="appState.activeUrl"
       :set-back-button-ref="setBackButtonRef"
       :set-webview-ref="setWebviewRef"
-      :show-live-menu="liveMenuVisible"
-      :live-menu-groups="liveMenuGroups"
-      :active-live-group-index="liveMenuGroupIndex"
-      :active-live-column="liveMenuColumn"
-      :active-live-item-index="currentLiveItemIndex"
-      :live-menu-heading="liveMenuHeading"
+      :show-live-menu="liveMenu.state.visible"
+      :live-menu-groups="liveMenu.groups"
+      :active-live-group-index="liveMenu.state.groupIndex"
+      :active-live-column="liveMenu.state.column"
+      :active-live-item-index="liveMenu.currentItemIndex.value"
+      :live-menu-heading="liveMenu.heading.value"
       @browser-ready="handleBrowserReady"
       @go-home="goHome"
       @select-live-channel="selectLiveChannel"
@@ -143,11 +143,11 @@ function openSite(item: Shortcut) {
 }
 
 function openConfiguredModule() {
-  if (!settings.value.openModuleOnLaunch || !settings.value.launchModuleId) {
+  if (!appState.settings.openModuleOnLaunch || !appState.settings.launchModuleId) {
     return;
   }
 
-  const targetShortcut = defaultShortcuts.find((item) => item.url === settings.value.launchModuleId);
+  const targetShortcut = defaultShortcuts.find((item) => item.url === appState.settings.launchModuleId);
   if (!targetShortcut) {
     return;
   }
@@ -186,14 +186,14 @@ function setWebviewRef(element: Element | ComponentPublicInstance | null) {
 }
 
 function focusSelectedCard() {
-  const card = cardRefs.value[selectedIndex.value];
+  const card = cardRefs.value[appState.selectedIndex];
   card?.focus();
 }
 
 function moveSelection(offset: number) {
   const total = shortcuts.value.length;
   if (total === 0) return;
-  selectedIndex.value = (selectedIndex.value + offset + total) % total;
+  appState.selectedIndex = (appState.selectedIndex + offset + total) % total;
   focusSelectedCard();
 }
 
@@ -202,67 +202,27 @@ function toggleLiveMenu() {
     return;
   }
 
-  liveMenuVisible.value = !liveMenuVisible.value;
-
-  if (!liveMenuVisible.value) {
-    liveMenuColumn.value = 'group';
-  }
+  liveMenu.toggle();
 }
 
 function closeLiveMenu() {
-  liveMenuVisible.value = false;
-  liveMenuColumn.value = 'group';
+  liveMenu.close();
 }
 
 function moveLiveMenuGroup(offset: number) {
-  const total = liveMenuGroups.value.length;
-  liveMenuGroupIndex.value = (liveMenuGroupIndex.value + offset + total) % total;
+  liveMenu.moveGroup(offset);
 }
 
 function moveLiveMenuItem(offset: number) {
-  const items = currentLiveItems.value;
-  const total = items.length;
-  const nextIndex = (currentLiveItemIndex.value + offset + total) % total;
-
-  liveMenuItemIndices.value[liveMenuGroupIndex.value] = nextIndex;
+  liveMenu.moveItem(offset);
 }
 
 function syncLiveChannelSelection(channelName: string) {
-  if (!channelName) {
-    return;
-  }
-
-  const normalizedName = channelName.trim();
-  currentLiveChannel.value = normalizedName;
-
-  const groupIndex = liveMenuGroups.value.findIndex((group) => group.items.includes(normalizedName));
-  if (groupIndex === -1) {
-    return;
-  }
-
-  const itemIndex = liveMenuGroups.value[groupIndex].items.indexOf(normalizedName);
-  liveMenuGroupIndex.value = groupIndex;
-  liveMenuItemIndices.value[groupIndex] = itemIndex;
+  liveMenu.syncChannel(channelName);
 }
 
 function applyLiveMenuGroups(data: { currentChannel?: string; 央视频道?: string[]; 卫视频道?: string[] }) {
-  const cctvChannels = data.央视频道?.length ? data.央视频道 : ['内容稍后添加'];
-  const satelliteChannels = data.卫视频道?.length ? data.卫视频道 : ['内容稍后添加'];
-
-  liveMenuGroups.value = [
-    {
-      label: '央视频道',
-      items: cctvChannels
-    },
-    {
-      label: '卫视频道',
-      items: satelliteChannels
-    }
-  ];
-
-  liveMenuItemIndices.value = liveMenuGroups.value.map(() => 0);
-  liveMenuGroupIndex.value = 0;
-  syncLiveChannelSelection(data.currentChannel ?? '');
+  liveMenu.applyGroups(data);
 }
 
 async function loadPluginConfig(pluginId: string): Promise<PluginConfig> {
@@ -271,7 +231,7 @@ async function loadPluginConfig(pluginId: string): Promise<PluginConfig> {
 }
 
 async function savePluginConfig(pluginId: string, config: PluginConfig): Promise<void> {
-  currentPluginConfig.value = config;
+  pluginState.currentPluginConfig = config;
   await ipcRenderer?.invoke('plugin-config:set', pluginId, config);
 }
 
@@ -299,16 +259,16 @@ async function ensureActivePluginReady(): Promise<BrowserPlugin | null> {
     return null;
   }
 
-  if (currentPluginId.value !== plugin.manifest.id) {
-    currentPluginConfig.value = {
+  if (pluginState.currentPluginId !== plugin.manifest.id) {
+    pluginState.currentPluginConfig = {
       ...plugin.manifest.defaultConfig,
       ...(await loadPluginConfig(plugin.manifest.id))
     };
-    currentPluginId.value = plugin.manifest.id;
+    pluginState.currentPluginId = plugin.manifest.id;
   }
 
   try {
-    await webview.executeJavaScript(plugin.buildInitScript(currentPluginConfig.value), true);
+    await webview.executeJavaScript(plugin.buildInitScript(pluginState.currentPluginConfig), true);
   } catch (error) {
     console.error(`初始化插件 ${plugin.manifest.id} 失败:`, error);
     return null;
@@ -378,7 +338,7 @@ async function adjustActivePluginVolume(delta: number): Promise<void> {
 
     if (typeof volume === 'number') {
       await savePluginConfig(plugin.manifest.id, {
-        ...currentPluginConfig.value,
+        ...pluginState.currentPluginConfig,
         volume
       });
     }
@@ -401,7 +361,7 @@ function handleBrowserReady() {
 
 function handleSettingsKeydown(event: KeyboardEvent) {
   // 在捕获阶段处理设置页面的键盘事件
-  if (appState.showSettings.value && !appState.activeUrl.value) {
+  if (appState.showSettings && !appState.activeUrl) {
     // 只拦截 Esc 和 Backspace，其他事件让它继续传播到 SettingsPanel
     if (event.key === 'Escape' || event.key === 'Backspace') {
       event.preventDefault();
@@ -414,7 +374,7 @@ function handleSettingsKeydown(event: KeyboardEvent) {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (appState.showSettings.value && !appState.activeUrl.value) {
+  if (appState.showSettings && !appState.activeUrl) {
     // 设置页面的键盘事件由 SettingsPanel 自己处理
     // 只拦截 Esc 和 Backspace 返回主页
     console.log(event.key)
@@ -426,8 +386,8 @@ function handleKeydown(event: KeyboardEvent) {
     return;
   }
 
-  if (appState.activeUrl.value) {
-    if (liveMenuVisible.value) {
+  if (appState.activeUrl) {
+    if (liveMenu.state.visible) {
       if (event.key === 'Escape' || event.key === 'Backspace') {
         event.preventDefault();
         closeLiveMenu();
@@ -436,14 +396,14 @@ function handleKeydown(event: KeyboardEvent) {
 
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
         event.preventDefault();
-        liveMenuColumn.value = liveMenuColumn.value === 'group' ? 'item' : 'group';
+        liveMenu.switchColumn();
         return;
       }
 
       if (event.key === 'ArrowUp') {
         event.preventDefault();
 
-        if (liveMenuColumn.value === 'group') {
+        if (liveMenu.state.column === 'group') {
           moveLiveMenuGroup(-1);
           return;
         }
@@ -455,7 +415,7 @@ function handleKeydown(event: KeyboardEvent) {
       if (event.key === 'ArrowDown') {
         event.preventDefault();
 
-        if (liveMenuColumn.value === 'group') {
+        if (liveMenu.state.column === 'group') {
           moveLiveMenuGroup(1);
           return;
         }
@@ -464,9 +424,9 @@ function handleKeydown(event: KeyboardEvent) {
         return;
       }
 
-      if (event.key === 'Enter' && liveMenuColumn.value === 'item') {
+      if (event.key === 'Enter' && liveMenu.state.column === 'item') {
         event.preventDefault();
-        void selectLiveChannel(currentLiveItems.value[currentLiveItemIndex.value]);
+        void selectLiveChannel(liveMenu.currentItems.value[liveMenu.currentItemIndex.value]);
         return;
       }
 
@@ -514,7 +474,7 @@ function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter' || event.key === ' ') {
     event.preventDefault();
     if (shortcuts.value.length > 0) {
-      openSite(shortcuts.value[selectedIndex.value]);
+      openSite(shortcuts.value[appState.selectedIndex]);
     }
   }
 }
