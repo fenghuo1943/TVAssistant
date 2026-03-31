@@ -1,5 +1,7 @@
 import type { Shortcut } from './homePageShared.ts';
 
+export type { Shortcut };
+
 export type HomeMode = 'tv' | 'game';
 
 export type AppSettings = {
