@@ -174,6 +174,27 @@ defineEmits<{
   flex-direction: column;
   gap: 14px;
   min-height: 240px;
+  max-height: min(480px, 60vh);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.live-menu-column::-webkit-scrollbar {
+  width: 6px;
+}
+
+.live-menu-column::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+}
+
+.live-menu-column::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+.live-menu-column:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
 }
 
 .live-menu-column-left {

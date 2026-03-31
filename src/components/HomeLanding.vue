@@ -44,7 +44,7 @@
       class="site-card"
       :class="[item.theme, { 'is-selected': selectedIndex === index }]"
       :tabindex="selectedIndex === index ? 0 : -1"
-      :ref="(element) => setCardRef(element, index)"
+      :ref="(element) => setCardRef(element as HTMLButtonElement, index)"
       :aria-label="`打开${item.name}`"
       :aria-current="selectedIndex === index ? 'true' : undefined"
       role="listitem"
@@ -61,7 +61,7 @@
 </template>
 
 <script lang="ts" setup>
-import type { Shortcut } from '../homePageShared';
+import type { Shortcut } from '../homePageShared.ts';
 
 defineProps<{
   currentTime: string;

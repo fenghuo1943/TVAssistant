@@ -213,11 +213,45 @@ function closeLiveMenu() {
 }
 
 function moveLiveMenuGroup(offset: number) {
+  const oldGroupIndex = liveMenu.state.groupIndex;
   liveMenu.moveGroup(offset);
+  
+  // 只有在分组真正改变时才需要滚动
+  if (oldGroupIndex !== liveMenu.state.groupIndex) {
+    void nextTick(() => {
+      setTimeout(() => {
+        // 查找当前选中的频道项（可能在不同的列焦点状态下）
+        const activeItem = document.querySelector('.live-menu-channel-item.is-active') ||
+                          document.querySelector('.live-menu-channel-item.is-selected');
+        if (activeItem) {
+          activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 80);
+    });
+  }
 }
 
 function moveLiveMenuItem(offset: number) {
   liveMenu.moveItem(offset);
+  void nextTick(() => {
+    setTimeout(() => {
+      const activeItem = document.querySelector('.live-menu-channel-item.is-active') ||
+                        document.querySelector('.live-menu-channel-item.is-selected');
+      if (activeItem) {
+        activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 50);
+  });
+}
+
+function scrollToActiveElement(selector: string) {
+  setTimeout(() => {
+    const element = document.querySelector(selector) || 
+                    document.querySelector('.live-menu-channel-item.is-selected');
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, 50);
 }
 
 function syncLiveChannelSelection(channelName: string) {
