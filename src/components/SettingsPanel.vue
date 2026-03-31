@@ -257,18 +257,13 @@ function focusSite(index: number) {
   focusedContentIndex.value = -1;
   focusedButtonIndex.value = -1; // 重置按钮焦点
   focusedSidebarIndex.value = -1; // 离开侧边栏，进入内容区
-  console.log('focusSite called, index:', index, 'total:', total, 'refs length:', siteItemRefs.value.length);
-  console.log('siteItemRefs[0]:', siteItemRefs.value[0]);
   
   nextTick(() => {
-    console.log('nextTick - siteItemRefs[0]:', siteItemRefs.value[0]);
     const element = siteItemRefs.value[focusedSiteIndex.value];
-    console.log('Trying to focus element:', element);
     if (element) {
       element.focus();
       // 滚动到可视区域
       element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      console.log('Focused and scrolled!');
     }
   });
 }
@@ -344,12 +339,8 @@ function handleKeydown(event: KeyboardEvent) {
   }
   
   // 如果在网址管理页面
-  if(props.activeMenu === 'site-management'){
-    console.log('focusedSiteIndex:', focusedSiteIndex.value);
-  }
-  if ((props.activeMenu === 'site-management' || focusedSiteIndex.value >= 0) && focusedSiteIndex.value >= 0) {
+  if (props.activeMenu === 'site-management' && focusedSiteIndex.value >= 0) {
     // 如果焦点在按钮上
-    console.log('focusedButtonIndex:', focusedButtonIndex.value);
     if (focusedButtonIndex.value >= 0) {
       if (key === 'ArrowLeft') {
         event.preventDefault();
@@ -443,7 +434,6 @@ function handleKeydown(event: KeyboardEvent) {
     
     if (key === 'ArrowRight') {
       event.preventDefault();
-      console.log('ArrowRight123');
       // 聚焦到当前项的添加/移除按钮
       focusedButtonIndex.value = focusedSiteIndex.value;
       nextTick(() => {
@@ -503,7 +493,6 @@ function handleKeydown(event: KeyboardEvent) {
     if (key === 'ArrowRight') {
       event.preventDefault();
       // 如果在模式选择上，切换左右
-      console.log('ArrowRight12322');
       if (focusedContentIndex.value === 2) {
         modeFocusedIndex.value = modeFocusedIndex.value === 0 ? 1 : 0;
         nextTick(() => {
