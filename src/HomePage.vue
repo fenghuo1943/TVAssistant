@@ -49,6 +49,7 @@ import { defaultShortcuts, type Shortcut } from './settings.ts';
 import { findBrowserPlugin } from './plugins/browserPlugins.ts';
 import { defaultSettings, type AppSettings } from './settings.ts';
 import type { IpcRenderer, PluginConfig, LiveMenuData, BrowserPlugin } from './plugins/types.ts';
+import { withRetry, showError } from './utils/errorHandler.ts';
 
 type SettingsMenuKey = 'general' | 'site-management' | 'add-site' | 'add-local-app' | 'wallpaper';
 
@@ -226,30 +227,90 @@ function applyLiveMenuGroups(data: { currentChannel?: string; 央视频道?: str
 }
 
 async function loadPluginConfig(pluginId: string): Promise<PluginConfig> {
-  const config = await ipcRenderer?.invoke<PluginConfig>('plugin-config:get', pluginId);
-  return config ?? {};
+  try {
+    return await withRetry(
+      async () => {
+        const response = await ipcRenderer?.invoke<PluginConfig>('plugin-config:get', pluginId);
+        return response ?? {};
+      },
+      {
+        message: `加载插件 ${pluginId} 配置失败`,
+        retryable: true,
+        maxRetries: 3
+      }
+    );
+  } catch {
+    showError(`无法加载插件配置，请检查网络连接`);
+    return {};
+  }
 }
 
 async function savePluginConfig(pluginId: string, config: PluginConfig): Promise<void> {
-  pluginState.currentPluginConfig = config;
-  await ipcRenderer?.invoke('plugin-config:set', pluginId, config);
+  try {
+    pluginState.currentPluginConfig = config;
+    await withRetry(
+      async () => {
+        await ipcRenderer?.invoke('plugin-config:set', pluginId, config);
+      },
+      {
+        message: `保存插件 ${pluginId} 配置失败`,
+        retryable: true,
+        maxRetries: 3
+      }
+    );
+  } catch (error) {
+    showError(`保存插件配置失败，请稍后重试`);
+    throw error;
+  }
 }
 
 async function loadSettings(): Promise<void> {
-  const response = await ipcRenderer?.invoke<Partial<AppSettings>>('settings:get');
-  appState.settings = {
-    ...defaultSettings,
-    ...response
-  };
+  try {
+    const response = await withRetry(
+      async () => {
+        return await ipcRenderer?.invoke<Partial<AppSettings>>('settings:get');
+      },
+      {
+        message: '加载设置失败',
+        retryable: true,
+        maxRetries: 3
+      }
+    );
+    appState.settings = {
+      ...defaultSettings,
+      ...response
+    };
+  } catch (error) {
+    showError('无法加载设置，将使用默认配置');
+    appState.settings = { ...defaultSettings };
+  }
 }
 
 async function saveSettings(value: Partial<AppSettings>): Promise<void> {
-  const response = await ipcRenderer?.invoke<Partial<AppSettings>>('settings:set', value);
-  appState.settings = {
-    ...appState.settings,
-    ...value,
-    ...response
-  };
+  try {
+    await withRetry(
+      async () => {
+        const response = await ipcRenderer?.invoke<Partial<AppSettings>>('settings:set', value);
+        return response;
+      },
+      {
+        message: '保存设置失败',
+        retryable: true,
+        maxRetries: 3
+      }
+    );
+    
+    // 更新本地状态
+    appState.settings = {
+      ...appState.settings,
+      ...value
+    };
+    
+    showError('设置已保存', { level: 'info' });
+  } catch (error) {
+    showError('保存设置失败，请稍后重试');
+    throw error;
+  }
 }
 
 async function ensureActivePluginReady(): Promise<BrowserPlugin | null> {

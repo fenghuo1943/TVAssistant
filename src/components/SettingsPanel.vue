@@ -139,6 +139,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { defaultShortcuts, launchModuleOptions, type AppSettings, type Shortcut } from '../settings.ts';
 import type { IpcRenderer } from '../plugins/types.ts';
+import { showError } from '../utils/errorHandler.ts';
 
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
   .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
