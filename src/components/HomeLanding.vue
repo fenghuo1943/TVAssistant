@@ -36,7 +36,7 @@
     <span class="hero-line hero-line-bottom" />
   </section>
 
-  <section class="card-grid" aria-label="快捷入口">
+  <section class="card-grid" aria-label="快捷入口" role="list">
     <button
       v-for="(item, index) in shortcuts"
       :key="item.name"
@@ -45,6 +45,9 @@
       :class="[item.theme, { 'is-selected': selectedIndex === index }]"
       :tabindex="selectedIndex === index ? 0 : -1"
       :ref="(element) => setCardRef(element, index)"
+      :aria-label="`打开${item.name}`"
+      :aria-current="selectedIndex === index ? 'true' : undefined"
+      role="listitem"
       @click="$emit('open-site', item)"
       @focus="$emit('focus-card', index)"
     >

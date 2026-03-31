@@ -1,14 +1,14 @@
 <template>
-  <section class="settings-shell" ref="settingsShellRef" tabindex="0" @keydown="handleKeydown">
+  <section class="settings-shell" ref="settingsShellRef" tabindex="0" @keydown="handleKeydown" role="application" aria-label="设置面板">
     <header class="settings-header">
-      <button type="button" class="back-button" ref="backButtonRef" @click="$emit('back')">
+      <button type="button" class="back-button" ref="backButtonRef" @click="$emit('back')" aria-label="返回上一页">
         ← 返回
       </button>
-      <h1 class="settings-title">设置</h1>
+      <h1 class="settings-title" id="settings-title">设置</h1>
     </header>
 
     <div class="settings-body">
-      <aside class="settings-sidebar" aria-label="设置分类" role="tablist">
+      <aside class="settings-sidebar" aria-label="设置分类" role="tablist" aria-labelledby="settings-title">
         <button
           v-for="(item, index) in menuItems"
           :key="item.key"
@@ -20,16 +20,18 @@
           @click="$emit('select-menu', item.key)"
           role="tab"
           :aria-selected="activeMenu === item.key"
+          :aria-label="`打开${item.label}设置`"
+          :aria-controls="`panel-${item.key}`"
         >
           {{ item.label }}
         </button>
       </aside>
 
-      <div class="settings-content">
-        <section v-if="activeMenu === 'general'" class="settings-card" role="tabpanel">
+      <div class="settings-content" role="presentation">
+        <section v-if="activeMenu === 'general'" class="settings-card" role="tabpanel" id="panel-general" aria-labelledby="settings-title">
           <div class="setting-row">
             <div class="setting-copy">
-              <div class="setting-label">打开应用后直接启动</div>
+              <div class="setting-label" id="launch-module-label">打开应用后直接启动</div>
               <div class="setting-desc">选择后可在启动应用时直接进入对应模块。</div>
             </div>
             <select
@@ -39,6 +41,7 @@
               ref="launchModuleSelectRef"
               :class="{ 'is-focused': focusedContentIndex === 0 }"
               :tabindex="focusedContentIndex === 0 ? 0 : -1"
+              aria-labelledby="launch-module-label"
             >
               <option v-for="option in launchModuleOptions" :key="option.id || 'none'" :value="option.id">
                 {{ option.name }}
@@ -48,7 +51,7 @@
 
           <div class="setting-row">
             <div class="setting-copy">
-              <div class="setting-label">应用开机自启动</div>
+              <div class="setting-label" id="start-at-login-label">应用开机自启动</div>
               <div class="setting-desc">开启后会在系统登录时自动启动应用。</div>
             </div>
             <button
@@ -59,6 +62,7 @@
               :tabindex="focusedContentIndex === 1 ? 0 : -1"
               ref="startAtLoginSwitchRef"
               @click="$emit('update-setting', { startAtLogin: !settings.startAtLogin })"
+              aria-labelledby="start-at-login-label"
             >
               <span class="switch-knob" />
             </button>
@@ -94,7 +98,7 @@
           </div>
         </section>
 
-        <section v-else-if="activeMenu === 'site-management'" class="settings-card" role="tabpanel">
+        <section v-else-if="activeMenu === 'site-management'" class="settings-card" role="tabpanel" id="panel-site-management" aria-labelledby="settings-title">
           <div class="site-list">
             <div
               v-for="(site, index) in availableShortcuts"

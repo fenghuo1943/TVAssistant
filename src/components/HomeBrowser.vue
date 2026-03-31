@@ -12,12 +12,14 @@
         v-if="showLiveMenu"
         class="live-menu-overlay"
         aria-label="直播频道菜单"
+        role="dialog"
+        aria-modal="true"
       >
-        <div class="live-menu-panel">
-          <div class="live-menu-heading">{{ liveMenuHeading }}</div>
+        <div class="live-menu-panel" role="region" aria-label="频道列表">
+          <div class="live-menu-heading" aria-live="polite">{{ liveMenuHeading }}</div>
 
-          <div class="live-menu-columns">
-            <div class="live-menu-column live-menu-column-left">
+          <div class="live-menu-columns" role="group">
+            <div class="live-menu-column live-menu-column-left" role="tablist" aria-label="频道分组">
               <button
                 v-for="(group, index) in liveMenuGroups"
                 :key="group.label"
@@ -27,12 +29,16 @@
                   'is-selected': index === activeLiveGroupIndex,
                   'is-active': activeLiveColumn === 'group' && index === activeLiveGroupIndex
                 }"
+                :aria-label="`选择${group.label}`"
+                :aria-current="index === activeLiveGroupIndex ? 'true' : undefined"
+                role="tab"
+                :tabindex="activeLiveColumn === 'group' && index === activeLiveGroupIndex ? 0 : -1"
               >
                 {{ group.label }}
               </button>
             </div>
 
-            <div class="live-menu-column live-menu-column-right">
+            <div class="live-menu-column live-menu-column-right" role="grid" aria-label="频道项目">
               <button
                 v-for="(item, index) in liveMenuGroups[activeLiveGroupIndex]?.items ?? []"
                 :key="`${liveMenuGroups[activeLiveGroupIndex]?.label}-${item}-${index}`"
@@ -42,6 +48,9 @@
                   'is-selected': index === activeLiveItemIndex,
                   'is-active': activeLiveColumn === 'item' && index === activeLiveItemIndex
                 }"
+                :aria-label="`选择${item}频道`"
+                :aria-current="index === activeLiveItemIndex ? 'true' : undefined"
+                :tabindex="activeLiveColumn === 'item' && index === activeLiveItemIndex ? 0 : -1"
                 @click="$emit('select-live-channel', item)"
               >
                 {{ item }}
