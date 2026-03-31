@@ -28,7 +28,7 @@
       </aside>
 
       <div class="settings-content" role="presentation">
-        <section v-if="activeMenu === 'general'" class="settings-card" role="tabpanel" id="panel-general" aria-labelledby="settings-title">
+        <section v-if="activeMenu === 'general'" class="settings-card" :class="{ 'is-secondary-focused': isSecondaryFocused }" role="tabpanel" id="panel-general" aria-labelledby="settings-title">
           <div class="setting-row">
             <div class="setting-copy">
               <div class="setting-label" id="launch-module-label">打开应用后直接启动</div>
@@ -98,7 +98,7 @@
           </div>
         </section>
 
-        <section v-else-if="activeMenu === 'site-management'" class="settings-card" role="tabpanel" id="panel-site-management" aria-labelledby="settings-title">
+        <section v-else-if="activeMenu === 'site-management'" class="settings-card" :class="{ 'is-secondary-focused': isSecondaryFocused }" role="tabpanel" id="panel-site-management" aria-labelledby="settings-title">
           <div class="site-list">
             <div
               v-for="(site, index) in availableShortcuts"
@@ -130,9 +130,84 @@
           </div>
         </section>
 
-        <section v-else class="settings-card settings-placeholder" role="tabpanel">
-          <div class="placeholder-title">{{ currentMenuLabel }}</div>
-          <div class="placeholder-desc">该页面内容稍后添加。</div>
+        <section v-else-if="activeMenu === 'add-site'" class="settings-card" :class="{ 'is-secondary-focused': isSecondaryFocused }" role="tabpanel" id="panel-add-site" aria-labelledby="settings-title">
+          <div class="add-site-form">
+            <div class="form-header">
+              <h2 class="form-title">添加新网址</h2>
+              <span class="form-hint">需要用鼠标键盘</span>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label" for="site-name-input" id="site-name-label">网站名称</label>
+              <input
+                id="site-name-input"
+                ref="siteNameInputRef"
+                type="text"
+                class="form-input"
+                :class="{ 'is-focused': focusedInputIndex === 0, 'is-error': errors.name }"
+                placeholder="例如：优酷"
+                v-model="formData.name"
+                :tabindex="focusedInputIndex === 0 ? 0 : -1"
+                aria-labelledby="site-name-label"
+                :aria-invalid="errors.name ? 'true' : 'false'"
+                @focus="focusedInputIndex = 0"
+                @blur="validateName"
+              />
+              <div v-if="errors.name" class="form-error" role="alert">
+                {{ errors.name }}
+              </div>
+            </div>
+
+            <div class="form-row">
+              <label class="form-label" for="site-url-input" id="site-url-label">网址</label>
+              <input
+                id="site-url-input"
+                ref="siteUrlInputRef"
+                type="text"
+                class="form-input"
+                :class="{ 'is-focused': focusedInputIndex === 1, 'is-error': errors.url }"
+                placeholder="https:// 开头"
+                v-model="formData.url"
+                :tabindex="focusedInputIndex === 1 ? 0 : -1"
+                aria-labelledby="site-url-label"
+                :aria-invalid="errors.url ? 'true' : 'false'"
+                @focus="focusedInputIndex = 1"
+                @blur="validateUrl"
+              />
+              <div v-if="errors.url" class="form-error" role="alert">
+                {{ errors.url }}
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button
+                type="button"
+                class="action-btn confirm-btn"
+                :class="{ 'is-focused': focusedButtonIndex === 0 }"
+                :tabindex="focusedButtonIndex === 0 ? 0 : -1"
+                ref="confirmBtnRef"
+                @click="handleSubmit"
+                @focus="focusedButtonIndex = 0"
+              >
+                确认添加
+              </button>
+              <button
+                type="button"
+                class="action-btn cancel-btn"
+                :class="{ 'is-focused': focusedButtonIndex === 1 }"
+                :tabindex="focusedButtonIndex === 1 ? 0 : -1"
+                ref="cancelBtnRef"
+                @click="handleCancel"
+                @focus="focusedButtonIndex = 1"
+              >
+                取消
+              </button>
+            </div>
+
+            <div v-if="submitMessage" class="form-message" :class="submitMessageType" role="status">
+              {{ submitMessage }}
+            </div>
+          </div>
         </section>
       </div>
     </div>
@@ -188,12 +263,36 @@ const currentMenuLabel = computed(() => {
   return menuItems.find((item) => item.key === props.activeMenu)?.label ?? '';
 });
 
+// 判断是否聚焦在第二级选项上（内容区）
+const isSecondaryFocused = computed(() => {
+  // 如果焦点在侧边栏，不显示高亮
+  if (focusedSidebarIndex.value >= 0) {
+    return false;
+  }
+  
+  // 检查各个页面的焦点状态
+  switch (props.activeMenu) {
+    case 'general':
+      // 常规设置页面：焦点在内容区控件上
+      return focusedContentIndex.value >= 0;
+    case 'site-management':
+      // 网址管理页面：焦点在网址项或按钮上
+      return focusedSiteIndex.value >= 0 || focusedButtonIndex.value >= 0;
+    case 'add-site':
+      // 添加新网址页面：焦点在输入框或按钮上
+      return focusedInputIndex.value >= 0 || focusedButtonIndex.value >= 0;
+    default:
+      return false;
+  }
+});
+
 // 焦点状态管理
 const focusedSidebarIndex = ref(0);
 const focusedContentIndex = ref(-1); // -1 表示未聚焦内容区，0 表示聚焦到按钮
 const modeFocusedIndex = ref(0);
 const focusedSiteIndex = ref(0); // 网址管理页面的焦点索引
 const focusedButtonIndex = ref(-1); // -1 表示未聚焦按钮，>=0 表示聚焦到具体网址项的按钮
+const focusedInputIndex = ref(-1); // -1 表示未聚焦输入框，0 表示名称输入框，1 表示 URL 输入框
 
 // 引用元素
 const settingsShellRef = ref<HTMLElement | null>(null);
@@ -204,6 +303,10 @@ const startAtLoginSwitchRef = ref<HTMLButtonElement | null>(null);
 const gameModeOptionRef = ref<HTMLButtonElement | null>(null);
 const tvModeOptionRef = ref<HTMLButtonElement | null>(null);
 const siteItemRefs = ref<HTMLDivElement[]>([]);
+const siteNameInputRef = ref<HTMLInputElement | null>(null);
+const siteUrlInputRef = ref<HTMLInputElement | null>(null);
+const confirmBtnRef = ref<HTMLButtonElement | null>(null);
+const cancelBtnRef = ref<HTMLButtonElement | null>(null);
 
 function setSidebarItemRef(el: HTMLButtonElement, index: number) {
   if (el) {
@@ -299,6 +402,145 @@ function toggleSite(site: SiteItem) {
   emit('update-setting', { enabledShortcuts: newUrls });
 }
 
+// 添加新网址表单数据
+const formData = ref({
+  name: '',
+  url: ''
+});
+
+const errors = ref({
+  name: '',
+  url: ''
+});
+
+const submitMessage = ref('');
+const submitMessageType = ref<'success' | 'error'>('success');
+
+function validateName(): boolean {
+  const name = formData.value.name.trim();
+  
+  if (!name) {
+    errors.value.name = '请输入网站名称';
+    return false;
+  }
+  
+  if (name.length > 20) {
+    errors.value.name = '网站名称不能超过 20 个字符';
+    return false;
+  }
+  
+  // 检查是否已存在同名网站
+  const existingShortcut = defaultShortcuts.find(s => s.name === name);
+  if (existingShortcut) {
+    errors.value.name = '该网站名称已存在';
+    return false;
+  }
+  
+  errors.value.name = '';
+  return true;
+}
+
+function validateUrl(): boolean {
+  const url = formData.value.url.trim();
+  
+  if (!url) {
+    errors.value.url = '请输入网址';
+    return false;
+  }
+  
+  if (!url.startsWith('https://')) {
+    errors.value.url = '网址必须以 https:// 开头';
+    return false;
+  }
+  
+  try {
+    new URL(url);
+  } catch {
+    errors.value.url = '请输入有效的网址格式';
+    return false;
+  }
+  
+  // 检查是否已存在相同网址
+  const existingShortcut = defaultShortcuts.find(s => s.url === url);
+  if (existingShortcut) {
+    errors.value.url = '该网址已存在';
+    return false;
+  }
+  
+  errors.value.url = '';
+  return true;
+}
+
+function validateForm(): boolean {
+  const isNameValid = validateName();
+  const isUrlValid = validateUrl();
+  
+  return isNameValid && isUrlValid;
+}
+
+function handleSubmit() {
+  submitMessage.value = '';
+  
+  if (!validateForm()) {
+    submitMessageType.value = 'error';
+    submitMessage.value = '请修正表单中的错误';
+    return;
+  }
+  
+  // 添加到默认快捷方式列表
+  const newShortcut: Shortcut = {
+    name: formData.value.name.trim(),
+    badge: formData.value.name.trim().toUpperCase().slice(0, 4),
+    url: formData.value.url.trim(),
+    theme: 'theme-custom'
+  };
+  
+  defaultShortcuts.push(newShortcut);
+  
+  // 自动启用该快捷方式
+  const newUrls = [...props.settings.enabledShortcuts, newShortcut.url];
+  emit('update-setting', { enabledShortcuts: newUrls });
+  
+  // 显示成功消息
+  submitMessageType.value = 'success';
+  submitMessage.value = `已成功添加 ${newShortcut.name}`;
+  
+  // 清空表单
+  formData.value = {
+    name: '',
+    url: ''
+  };
+  errors.value = {
+    name: '',
+    url: ''
+  };
+  
+  // 重置焦点到第一个输入框
+  nextTick(() => {
+    siteNameInputRef.value?.focus();
+    focusedInputIndex.value = 0;
+    focusedButtonIndex.value = -1;
+  });
+}
+
+function handleCancel() {
+  formData.value = {
+    name: '',
+    url: ''
+  };
+  errors.value = {
+    name: '',
+    url: ''
+  };
+  submitMessage.value = '';
+  
+  nextTick(() => {
+    siteNameInputRef.value?.focus();
+    focusedInputIndex.value = 0;
+    focusedButtonIndex.value = -1;
+  });
+}
+
 function handleKeydown(event: KeyboardEvent) {
   const { key } = event;
   
@@ -323,8 +565,14 @@ function handleKeydown(event: KeyboardEvent) {
       if (currentMenuKey === 'general') {
         focusContent(0);
       } else if (currentMenuKey === 'site-management') {
-        
         focusSite(0);
+      } else if (currentMenuKey === 'add-site') {
+        // 添加新网址页面，聚焦到第一个输入框
+        focusedSidebarIndex.value = -1;
+        focusedInputIndex.value = 0;
+        nextTick(() => {
+          siteNameInputRef.value?.focus();
+        });
       }
       return;
     }
@@ -337,6 +585,13 @@ function handleKeydown(event: KeyboardEvent) {
         focusContent(0);
       } else if (currentMenuKey === 'site-management') {
         focusSite(0);
+      } else if (currentMenuKey === 'add-site') {
+        // 添加新网址页面，聚焦到第一个输入框
+        focusedSidebarIndex.value = -1;
+        focusedInputIndex.value = 0;
+        nextTick(() => {
+          siteNameInputRef.value?.focus();
+        });
       }
       return;
     }
@@ -360,36 +615,42 @@ function handleKeydown(event: KeyboardEvent) {
       
       if (key === 'ArrowUp') {
         event.preventDefault();
-        // 移动到上一个按钮
+        // 在按钮之间向上移动
         if (focusedButtonIndex.value > 0) {
+          // 移动到上一个按钮
           focusedButtonIndex.value = focusedButtonIndex.value - 1;
           nextTick(() => {
             const button = siteItemRefs.value[focusedButtonIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
             button?.focus();
           });
         } else {
-          // 回到侧边栏，保持当前选中的菜单项
+          // 从第一个按钮移动到上一个网址项
           focusedButtonIndex.value = -1;
-          const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
-          focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+          focusedSiteIndex.value = 0;
+          nextTick(() => {
+            siteItemRefs.value[focusedSiteIndex.value]?.focus();
+          });
         }
         return;
       }
       
       if (key === 'ArrowDown') {
         event.preventDefault();
-        // 移动到下一个按钮
+        // 在按钮之间向下移动
         if (focusedButtonIndex.value < availableShortcuts.value.length - 1) {
+          // 移动到下一个按钮
           focusedButtonIndex.value = focusedButtonIndex.value + 1;
           nextTick(() => {
             const button = siteItemRefs.value[focusedButtonIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
             button?.focus();
           });
         } else {
-          // 回到侧边栏，保持当前选中的菜单项
+          // 从最后一个按钮移动到下一个网址项
           focusedButtonIndex.value = -1;
-          const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
-          focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+          focusedSiteIndex.value = availableShortcuts.value.length - 1;
+          nextTick(() => {
+            siteItemRefs.value[focusedSiteIndex.value]?.focus();
+          });
         }
         return;
       }
@@ -408,24 +669,38 @@ function handleKeydown(event: KeyboardEvent) {
     // 焦点在网址项上
     if (key === 'ArrowUp') {
       event.preventDefault();
+      // 在网址项之间向上循环移动
       if (focusedSiteIndex.value > 0) {
-        focusSite(focusedSiteIndex.value - 1);
-      } else {
-        // 回到侧边栏，保持当前选中的菜单项
-        const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
-        focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+        // 移动到上一个网址项
+        focusedSiteIndex.value = focusedSiteIndex.value - 1;
+        nextTick(() => {
+          siteItemRefs.value[focusedSiteIndex.value]?.focus();
+        });
+      } else if (availableShortcuts.value.length > 1) {
+        // 从第一个网址项循环到最后一个网址项
+        focusedSiteIndex.value = availableShortcuts.value.length - 1;
+        nextTick(() => {
+          siteItemRefs.value[focusedSiteIndex.value]?.focus();
+        });
       }
       return;
     }
     
     if (key === 'ArrowDown') {
       event.preventDefault();
+      // 在网址项之间向下循环移动
       if (focusedSiteIndex.value < availableShortcuts.value.length - 1) {
-        focusSite(focusedSiteIndex.value + 1);
-      } else {
-        // 回到侧边栏，保持当前选中的菜单项
-        const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
-        focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+        // 移动到下一个网址项
+        focusedSiteIndex.value = focusedSiteIndex.value + 1;
+        nextTick(() => {
+          siteItemRefs.value[focusedSiteIndex.value]?.focus();
+        });
+      } else if (availableShortcuts.value.length > 1) {
+        // 从最后一个网址项循环到第一个网址项
+        focusedSiteIndex.value = 0;
+        nextTick(() => {
+          siteItemRefs.value[focusedSiteIndex.value]?.focus();
+        });
       }
       return;
     }
@@ -458,6 +733,200 @@ function handleKeydown(event: KeyboardEvent) {
     }
     
     return;
+  }
+  
+  // 如果在添加新网址页面
+  if (props.activeMenu === 'add-site') {
+    // 如果焦点在输入框上
+    if (focusedInputIndex.value >= 0) {
+      if (key === 'ArrowUp') {
+        event.preventDefault();
+        // 在输入框之间向上移动
+        if (focusedInputIndex.value > 0) {
+          // 从 URL 输入框移动到名称输入框
+          focusedInputIndex.value = focusedInputIndex.value - 1;
+          nextTick(() => {
+            if (focusedInputIndex.value === 0) {
+              siteNameInputRef.value?.focus();
+            }
+          });
+        }
+        // 在名称输入框时按↑键，不执行任何操作（仅阻止默认行为）
+        return;
+      }
+      
+      if (key === 'ArrowDown') {
+        event.preventDefault();
+        if (focusedInputIndex.value < 1) {
+          // 移动到下一个输入框
+          focusedInputIndex.value = focusedInputIndex.value + 1;
+          nextTick(() => {
+            if (focusedInputIndex.value === 1) {
+              siteUrlInputRef.value?.focus();
+            }
+          });
+        } else {
+          // 移动到按钮
+          focusedInputIndex.value = -1;
+          focusedButtonIndex.value = 0;
+          nextTick(() => {
+            confirmBtnRef.value?.focus();
+          });
+        }
+        return;
+      }
+      
+      if (key === 'ArrowLeft') {
+        event.preventDefault();
+        // 回到侧边栏
+        const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+        focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+        return;
+      }
+      
+      if (key === 'Tab') {
+        event.preventDefault();
+        // Tab 键切换焦点
+        if (focusedInputIndex.value === 0) {
+          focusedInputIndex.value = 1;
+          nextTick(() => {
+            siteUrlInputRef.value?.focus();
+          });
+        } else if (focusedInputIndex.value === 1) {
+          focusedInputIndex.value = -1;
+          focusedButtonIndex.value = 0;
+          nextTick(() => {
+            confirmBtnRef.value?.focus();
+          });
+        } else {
+          focusedButtonIndex.value = focusedButtonIndex.value === 0 ? 1 : 0;
+          nextTick(() => {
+            if (focusedButtonIndex.value === 0) {
+              confirmBtnRef.value?.focus();
+            } else {
+              cancelBtnRef.value?.focus();
+            }
+          });
+        }
+        return;
+      }
+      
+      if (key === 'Enter') {
+        event.preventDefault();
+        // 在输入框按回车，移动到下一个输入框或提交
+        if (focusedInputIndex.value === 0) {
+          focusedInputIndex.value = 1;
+          nextTick(() => {
+            siteUrlInputRef.value?.focus();
+          });
+        } else if (focusedInputIndex.value === 1) {
+          handleSubmit();
+        }
+        return;
+      }
+      
+      return;
+    }
+    // 如果焦点在按钮上
+    if (focusedButtonIndex.value >= 0) {
+      if (key === 'ArrowLeft') {
+        event.preventDefault();
+        if (focusedButtonIndex.value > 0) {
+          focusedButtonIndex.value = focusedButtonIndex.value - 1;
+          nextTick(() => {
+            if (focusedButtonIndex.value === 0) {
+              confirmBtnRef.value?.focus();
+            }
+          });
+        } else {
+          // 回到输入框
+          focusedButtonIndex.value = -1;
+          focusedInputIndex.value = 1;
+          nextTick(() => {
+            siteUrlInputRef.value?.focus();
+          });
+        }
+        return;
+      }
+      
+      if (key === 'ArrowRight') {
+        event.preventDefault();
+        if (focusedButtonIndex.value < 1) {
+          focusedButtonIndex.value = focusedButtonIndex.value + 1;
+          nextTick(() => {
+            if (focusedButtonIndex.value === 1) {
+              cancelBtnRef.value?.focus();
+            }
+          });
+        } else {
+          // 回到输入框
+          focusedButtonIndex.value = -1;
+          focusedInputIndex.value = 1;
+          nextTick(() => {
+            siteUrlInputRef.value?.focus();
+          });
+        }
+        return;
+      }
+      
+      if (key === 'ArrowUp') {
+        event.preventDefault();
+        // 在按钮之间向上移动或回到输入框
+        if (focusedButtonIndex.value > 0) {
+          // 从取消按钮移动到确认按钮
+          focusedButtonIndex.value = focusedButtonIndex.value - 1;
+          nextTick(() => {
+            if (focusedButtonIndex.value === 0) {
+              confirmBtnRef.value?.focus();
+            }
+          });
+        } else {
+          // 从确认按钮回到输入框
+          focusedButtonIndex.value = -1;
+          focusedInputIndex.value = 1;
+          nextTick(() => {
+            siteUrlInputRef.value?.focus();
+          });
+        }
+        return;
+      }
+      
+      if (key === 'ArrowDown') {
+        event.preventDefault();
+        // 在按钮之间向下移动
+        if (focusedButtonIndex.value < 1) {
+          // 从确认按钮移动到取消按钮
+          focusedButtonIndex.value = focusedButtonIndex.value + 1;
+          nextTick(() => {
+            if (focusedButtonIndex.value === 1) {
+              cancelBtnRef.value?.focus();
+            }
+          });
+        }
+        // 在取消按钮时按↓键，不执行任何操作（仅阻止默认行为）
+        return;
+      }
+      
+      if (key === 'Enter') {
+        event.preventDefault();
+        if (focusedButtonIndex.value === 0) {
+          handleSubmit();
+        } else if (focusedButtonIndex.value === 1) {
+          handleCancel();
+        }
+        return;
+      }
+      
+      return;
+    }
+    
+    // 默认回到侧边栏
+    if (key === 'ArrowLeft') {
+      event.preventDefault();
+      const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+      focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0);
+      return;
+    }
   }
   
   // 如果在内容区（常规设置）
@@ -677,6 +1146,11 @@ onUnmounted(() => {
   border-radius: 18px;
   background: rgba(28, 28, 28, 0.96);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  transition: box-shadow 0.3s ease, border-color 0.3s ease;
+}
+
+.settings-card.is-secondary-focused {
+  box-shadow: inset 0 0 0 2px rgba(42, 149, 232, 0.6), 0 0 20px rgba(42, 149, 232, 0.15);
 }
 
 .setting-row {
@@ -911,6 +1385,154 @@ onUnmounted(() => {
 .placeholder-desc {
   font-size: 15px;
   color: rgba(210, 220, 230, 0.68);
+}
+
+.add-site-form {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.form-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.form-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f7fbff;
+  margin: 0;
+}
+
+.form-hint {
+  font-size: 13px;
+  color: rgba(210, 220, 230, 0.68);
+  font-weight: 500;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.form-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(247, 251, 255, 0.94);
+}
+
+.form-input {
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(79, 152, 209, 0.45);
+  background: rgba(12, 20, 27, 0.9);
+  color: #f4f8fb;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-input::placeholder {
+  color: rgba(210, 220, 230, 0.5);
+}
+
+.form-input.is-focused {
+  border-color: rgba(42, 149, 232, 0.8);
+  box-shadow: 0 0 0 3px rgba(42, 149, 232, 0.3);
+}
+
+.form-input.is-error {
+  border-color: rgba(255, 59, 48, 0.8);
+  box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.2);
+}
+
+.form-error {
+  font-size: 13px;
+  color: rgba(255, 59, 48, 0.92);
+  font-weight: 500;
+  margin-top: -4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.action-btn {
+  padding: 12px 28px;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+  position: relative;
+}
+
+.action-btn.confirm-btn {
+  background: linear-gradient(135deg, rgba(99, 194, 111, 0.92), rgba(49, 164, 245, 0.92));
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(49, 164, 245, 0.3);
+}
+
+.action-btn.cancel-btn {
+  background: rgba(255, 59, 48, 0.9);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(255, 59, 48, 0.3);
+}
+
+.action-btn:hover,
+.action-btn:focus-visible,
+.action-btn.is-focused {
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.action-btn.confirm-btn:hover,
+.action-btn.confirm-btn:focus-visible,
+.action-btn.confirm-btn.is-focused {
+  background: linear-gradient(135deg, rgba(79, 214, 91, 0.95), rgba(59, 174, 255, 0.95));
+  box-shadow: 
+    0 0 0 3px rgba(42, 149, 232, 0.4),
+    0 8px 24px rgba(42, 149, 232, 0.4),
+    0 0 40px rgba(42, 149, 232, 0.2);
+}
+
+.action-btn.cancel-btn:hover,
+.action-btn.cancel-btn:focus-visible,
+.action-btn.cancel-btn.is-focused {
+  background: rgba(255, 79, 68, 0.95);
+  box-shadow: 
+    0 0 0 3px rgba(255, 59, 48, 0.4),
+    0 8px 24px rgba(255, 59, 48, 0.4),
+    0 0 40px rgba(255, 59, 48, 0.2);
+}
+
+.form-message {
+  padding: 14px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 8px;
+}
+
+.form-message.success {
+  background: rgba(99, 194, 111, 0.15);
+  color: rgba(99, 194, 111, 0.92);
+  border: 1px solid rgba(99, 194, 111, 0.3);
+}
+
+.form-message.error {
+  background: rgba(255, 59, 48, 0.15);
+  color: rgba(255, 59, 48, 0.92);
+  border: 1px solid rgba(255, 59, 48, 0.3);
 }
 
 @media (max-width: 980px) {
