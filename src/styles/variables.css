@@ -1,0 +1,307 @@
+/**
+ * 设计令牌（CSS Variables）
+ * 定义全局样式变量，确保设计一致性
+ */
+
+:root {
+  /* ==================== 颜色系统 ==================== */
+  
+  /* 主色调 - 青蓝色系 */
+  --color-primary: rgba(120, 247, 255, 0.85);
+  --color-primary-soft: rgba(120, 247, 255, 0.28);
+  --color-primary-dark: rgba(120, 247, 255, 0.95);
+  
+  /* 成功色 - 绿色 */
+  --color-success: rgba(99, 194, 111, 0.92);
+  --color-success-soft: rgba(99, 194, 111, 0.2);
+  
+  /* 危险色 - 红色 */
+  --color-danger: rgba(255, 59, 48, 0.9);
+  --color-danger-soft: rgba(255, 59, 48, 0.2);
+  
+  /* 警告色 - 橙色 */
+  --color-warning: rgba(255, 149, 0, 0.9);
+  --color-warning-soft: rgba(255, 149, 0, 0.2);
+  
+  /* 信息色 - 蓝色 */
+  --color-info: rgba(0, 122, 255, 0.9);
+  --color-info-soft: rgba(0, 122, 255, 0.2);
+
+  /* ==================== 背景色 ==================== */
+  
+  /* 深色背景 */
+  --bg-dark: #06161b;
+  --bg-darker: #030d10;
+  --bg-light: #0a1f26;
+  
+  /* 毛玻璃效果 */
+  --bg-glass: rgba(15, 21, 28, 0.88);
+  --bg-glass-light: rgba(28, 28, 28, 0.96);
+  --bg-glass-card: rgba(30, 30, 30, 0.6);
+  
+  /* 遮罩层 */
+  --bg-overlay: rgba(0, 0, 0, 0.58);
+  --bg-overlay-light: rgba(0, 0, 0, 0.3);
+  --bg-overlay-heavy: rgba(0, 0, 0, 0.7);
+
+  /* ==================== 文字颜色 ==================== */
+  
+  /* 主要文字 */
+  --text-primary: #f4f7f8;
+  --text-primary-dim: rgba(244, 247, 248, 0.9);
+  
+  /* 次要文字 */
+  --text-secondary: rgba(236, 245, 248, 0.82);
+  --text-secondary-dim: rgba(236, 245, 248, 0.6);
+  
+  /* 辅助文字 */
+  --text-tertiary: rgba(210, 220, 230, 0.72);
+  --text-disabled: rgba(210, 220, 230, 0.4);
+  
+  /* 反色文字 */
+  --text-inverse: #000000;
+
+  /* ==================== 间距系统 ==================== */
+  
+  /* 基础间距单位：8px */
+  --spacing-xs: 8px;    /* 0.5x */
+  --spacing-sm: 14px;   /* 0.875x */
+  --spacing-md: 24px;   /* 1.5x */
+  --spacing-lg: 42px;   /* 2.625x */
+  --spacing-xl: 66px;   /* 4.125x */
+  --spacing-xxl: 100px; /* 6.25x */
+
+  /* ==================== 圆角 ==================== */
+  
+  --radius-sm: 10px;
+  --radius-md: 18px;
+  --radius-lg: 28px;
+  --radius-xl: 32px;
+  --radius-full: 9999px;
+
+  /* ==================== 阴影 ==================== */
+  
+  /* 小阴影 - 用于卡片悬浮 */
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --shadow-sm-hover: 0 6px 16px rgba(0, 0, 0, 0.25);
+  
+  /* 中阴影 - 用于浮动元素 */
+  --shadow-md: 0 18px 36px rgba(0, 0, 0, 0.28);
+  --shadow-md-hover: 0 22px 42px rgba(0, 0, 0, 0.32);
+  
+  /* 大阴影 - 用于模态框 */
+  --shadow-lg: 0 28px 60px rgba(0, 0, 0, 0.42);
+  --shadow-lg-hover: 0 34px 70px rgba(0, 0, 0, 0.48);
+
+  /* ==================== 断点 ==================== */
+  
+  /* 移动优先断点 */
+  --breakpoint-xs: 480px;   /* 小手机 */
+  --breakpoint-sm: 640px;   /* 大手机 */
+  --breakpoint-md: 768px;   /* 平板 */
+  --breakpoint-lg: 980px;   /* 小屏电脑 */
+  --breakpoint-xl: 1100px;  /* 标准屏幕 */
+  --breakpoint-xxl: 1400px; /* 大屏 */
+
+  /* ==================== 过渡动画 ==================== */
+  
+  /* 快速过渡 - 用于小元素 */
+  --transition-fast: 0.15s ease;
+  --transition-fast-out: cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* 标准过渡 - 用于中等元素 */
+  --transition-normal: 0.24s ease;
+  --transition-normal-out: cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* 慢速过渡 - 用于大元素 */
+  --transition-slow: 0.3s ease;
+  --transition-slow-out: cubic-bezier(0.4, 0, 0.2, 1);
+  
+  /* 弹性过渡 */
+  --transition-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ==================== 字体 ==================== */
+  
+  /* 字体大小 */
+  --font-size-xs: 12px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 18px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+  --font-size-4xl: 36px;
+  
+  /* 字重 */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  
+  /* 行高 */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.625;
+  --line-height-loose: 2;
+
+  /* ==================== 层级 ==================== */
+  
+  --z-index-base: 0;
+  --z-index-dropdown: 100;
+  --z-index-sticky: 200;
+  --z-index-fixed: 300;
+  --z-index-modal-backdrop: 400;
+  --z-index-modal: 500;
+  --z-index-popover: 600;
+  --z-index-tooltip: 700;
+  --z-index-toast: 9999;
+
+  /* ==================== 尺寸 ==================== */
+  
+  /* 常用组件尺寸 */
+  --header-height: 60px;
+  --sidebar-width: 280px;
+  --card-min-height: 120px;
+  --button-height-sm: 32px;
+  --button-height-md: 40px;
+  --button-height-lg: 48px;
+}
+
+/* ==================== 全局重置 ==================== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: var(--font-size-md);
+  line-height: var(--line-height-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  overflow-x: hidden;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-glass);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-primary-soft);
+  border-radius: var(--radius-full);
+  
+  &:hover {
+    background: var(--color-primary);
+  }
+}
+
+/* 选中文本 */
+::selection {
+  background-color: var(--color-primary-soft);
+  color: var(--text-primary);
+}
+
+/* 焦点样式 */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ==================== 动画关键帧 ==================== */
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ==================== 工具类 ==================== */
+
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-success));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.glass-effect {
+  background: var(--bg-glass);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
