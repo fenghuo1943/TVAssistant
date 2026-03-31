@@ -468,12 +468,12 @@ function handleSettingsKeydown(event: KeyboardEvent) {
   // 在捕获阶段处理设置页面的键盘事件
   if (appState.showSettings && !appState.activeUrl) {
     // 只拦截 Esc 和 Backspace，其他事件让它继续传播到 SettingsPanel
-    if (event.key === 'Escape' || event.key === 'Backspace') {
+    /* if (event.key === 'Escape' || event.key === 'Backspace') {
       event.preventDefault();
       event.stopPropagation();
       closeSettings();
       return;
-    }
+    } */
     // 其他按键不拦截，让它们自然传递给 SettingsPanel
   }
 }
@@ -482,11 +482,11 @@ function handleKeydown(event: KeyboardEvent) {
   if (appState.showSettings && !appState.activeUrl) {
     // 设置页面的键盘事件由 SettingsPanel 自己处理
     // 只拦截 Esc 和 Backspace 返回主页
-    console.log(event.key)
-    if (event.key === 'Escape' || event.key === 'Backspace') {
+    //console.log(event.key)
+    /* if (event.key === 'Escape' || event.key === 'Backspace') {
       event.preventDefault();
       closeSettings();
-    }
+    } */
     // 其他按键事件不拦截，让它们自然传递给 SettingsPanel
     return;
   }
