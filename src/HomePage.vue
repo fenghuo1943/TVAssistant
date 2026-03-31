@@ -41,7 +41,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, type ComponentPublicInstance } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, type ComponentPublicInstance } from 'vue';
 import HomeBrowser from './components/HomeBrowser.vue';
 import HomeLanding from './components/HomeLanding.vue';
 import SettingsPanel from './components/SettingsPanel.vue';
@@ -55,38 +55,33 @@ type SettingsMenuKey = 'general' | 'site-management' | 'add-site' | 'add-local-a
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
   .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
 
-const shortcuts = computed(() => {
-  return defaultShortcuts.filter(shortcut => 
-    settings.value.enabledShortcuts.includes(shortcut.url)
-  );
+// 使用 useLiveMenu composable 管理直播菜单状态
+import { useLiveMenu } from './composables/useLiveMenu.ts';
+const liveMenu = useLiveMenu();
+
+// 应用状态
+const appState = reactive({
+  now: new Date(),
+  selectedIndex: 0,
+  activeUrl: '',
+  activeTitle: '',
+  showSettings: false,
+  activeSettingsMenu: 'general' as SettingsMenuKey,
+  settings: { ...defaultSettings } as AppSettings
 });
-const now = ref(new Date());
-const selectedIndex = ref(0);
-const activeUrl = ref('');
-const activeTitle = ref('');
-const showSettings = ref(false);
-const activeSettingsMenu = ref<SettingsMenuKey>('general');
-const settings = ref<AppSettings>({ ...defaultSettings });
+
+// 引用管理
 const cardRefs = ref<HTMLButtonElement[]>([]);
 const backButtonRef = ref<HTMLButtonElement | null>(null);
 const webviewRef = ref<Electron.WebviewTag | null>(null);
-const liveMenuVisible = ref(false);
-const liveMenuGroupIndex = ref(0);
-const liveMenuColumn = ref<'group' | 'item'>('group');
-const liveMenuItemIndices = ref([0, 0]);
-const currentLiveChannel = ref('');
-const currentPluginId = ref('');
-const currentPluginConfig = ref<Record<string, unknown>>({});
-const liveMenuGroups = ref([
-  {
-    label: '央视频道',
-    items: ['内容稍后添加']
-  },
-  {
-    label: '卫视频道',
-    items: ['内容稍后添加']
-  }
-]);
+
+// 插件相关状态（与 liveMenu 分离）
+const pluginState = reactive({
+  currentPluginId: '',
+  currentPluginConfig: {} as PluginConfig
+});
+
+// 计时器和令牌
 let timer: number | undefined;
 let liveMenuFetchToken = 0;
 
@@ -96,31 +91,37 @@ const formatter = new Intl.DateTimeFormat('zh-CN', {
   weekday: 'long'
 });
 
+const shortcuts = computed(() => {
+  return defaultShortcuts.filter(shortcut => 
+    appState.settings.enabledShortcuts.includes(shortcut.url)
+  );
+});
+
 const currentTime = computed(() =>
-  now.value.toLocaleTimeString('zh-CN', {
+  appState.now.toLocaleTimeString('zh-CN', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false
   })
 );
 
-const activePlugin = computed(() => findBrowserPlugin(activeUrl.value));
-const currentDate = computed(() => formatter.format(now.value));
+const activePlugin = computed(() => findBrowserPlugin(appState.activeUrl));
+const currentDate = computed(() => formatter.format(appState.now));
 const isLiveMenuAvailable = computed(() => activePlugin.value?.manifest.capabilities.liveMenu ?? false);
-const currentLiveItems = computed(() => liveMenuGroups.value[liveMenuGroupIndex.value]?.items ?? []);
-const currentLiveItemIndex = computed(() => liveMenuItemIndices.value[liveMenuGroupIndex.value] ?? 0);
-const liveMenuHeading = computed(() => currentLiveChannel.value || liveMenuGroups.value[liveMenuGroupIndex.value]?.label || '');
+const currentLiveItems = computed(() => liveMenu.currentItems);
+const currentLiveItemIndex = computed(() => liveMenu.currentItemIndex);
+const liveMenuHeading = computed(() => liveMenu.heading);
 
 function updateTime() {
-  now.value = new Date();
+  appState.now = new Date();
 }
 
 function openSettings() {
-  showSettings.value = true;
+  appState.showSettings = true;
 }
 
 function closeSettings() {
-  showSettings.value = false;
+  appState.showSettings = false;
 
   nextTick(() => {
     focusSelectedCard();
@@ -128,13 +129,13 @@ function closeSettings() {
 }
 
 function openSite(item: Shortcut) {
-  activeUrl.value = item.url;
-  activeTitle.value = item.name;
-  showSettings.value = false;
-  closeLiveMenu();
-  currentLiveChannel.value = '';
-  currentPluginId.value = '';
-  currentPluginConfig.value = {};
+  appState.activeUrl = item.url;
+  appState.activeTitle = item.name;
+  appState.showSettings = false;
+  liveMenu.close();
+  liveMenu.currentChannel.value = '';
+  pluginState.currentPluginId = '';
+  pluginState.currentPluginConfig = {};
 
   nextTick(() => {
     backButtonRef.value?.focus();
@@ -155,12 +156,12 @@ function openConfiguredModule() {
 }
 
 function goHome() {
-  activeUrl.value = '';
-  activeTitle.value = '';
-  closeLiveMenu();
-  currentLiveChannel.value = '';
-  currentPluginId.value = '';
-  currentPluginConfig.value = {};
+  appState.activeUrl = '';
+  appState.activeTitle = '';
+  liveMenu.close();
+  liveMenu.currentChannel.value = '';
+  pluginState.currentPluginId = '';
+  pluginState.currentPluginConfig = {};
 
   nextTick(() => {
     focusSelectedCard();
@@ -276,7 +277,7 @@ async function savePluginConfig(pluginId: string, config: PluginConfig): Promise
 
 async function loadSettings(): Promise<void> {
   const response = await ipcRenderer?.invoke<Partial<AppSettings>>('settings:get');
-  settings.value = {
+  appState.settings = {
     ...defaultSettings,
     ...response
   };
@@ -284,8 +285,8 @@ async function loadSettings(): Promise<void> {
 
 async function saveSettings(value: Partial<AppSettings>): Promise<void> {
   const response = await ipcRenderer?.invoke<Partial<AppSettings>>('settings:set', value);
-  settings.value = {
-    ...settings.value,
+  appState.settings = {
+    ...appState.settings,
     ...value,
     ...response
   };
@@ -400,7 +401,7 @@ function handleBrowserReady() {
 
 function handleSettingsKeydown(event: KeyboardEvent) {
   // 在捕获阶段处理设置页面的键盘事件
-  if (showSettings.value && !activeUrl.value) {
+  if (appState.showSettings.value && !appState.activeUrl.value) {
     // 只拦截 Esc 和 Backspace，其他事件让它继续传播到 SettingsPanel
     if (event.key === 'Escape' || event.key === 'Backspace') {
       event.preventDefault();
@@ -413,7 +414,7 @@ function handleSettingsKeydown(event: KeyboardEvent) {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (showSettings.value && !activeUrl.value) {
+  if (appState.showSettings.value && !appState.activeUrl.value) {
     // 设置页面的键盘事件由 SettingsPanel 自己处理
     // 只拦截 Esc 和 Backspace 返回主页
     console.log(event.key)
@@ -425,7 +426,7 @@ function handleKeydown(event: KeyboardEvent) {
     return;
   }
 
-  if (activeUrl.value) {
+  if (appState.activeUrl.value) {
     if (liveMenuVisible.value) {
       if (event.key === 'Escape' || event.key === 'Backspace') {
         event.preventDefault();
