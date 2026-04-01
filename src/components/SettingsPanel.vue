@@ -30,6 +30,7 @@
           :is-secondary-focused="isSecondaryFocused"
           @update-setting="$emit('update-setting', $event)"
           @set-ref="setSiteItemRef"
+          @item-removed="handleSiteRemoved"
         />
         
         <AddSiteForm
@@ -451,6 +452,30 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
     const button = siteItemRefs.value[focusedSiteIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
     button?.click();
     return;
+  }
+}
+
+// 处理网址删除后的焦点调整
+function handleSiteRemoved(removedIndex: number) {
+  // 删除后，将焦点移动到上一个元素（如果存在）
+  const newIndex = Math.max(0, removedIndex - 1);
+  
+  // 检查新索引是否在有效范围内
+  if (newIndex < siteItemRefs.value.length) {
+    focusedSiteIndex.value = newIndex;
+    focusedButtonIndex.value = -1;
+    nextTick(() => {
+      siteItemRefs.value[newIndex]?.focus();
+    });
+  } else if (siteItemRefs.value.length === 0) {
+    // 如果没有网址了，返回侧边栏
+    const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+    focusedSidebarIndex.value = currentMenuIndex >= 0 ? currentMenuIndex : 0;
+    focusedSiteIndex.value = 0;
+    focusedButtonIndex.value = -1;
+    nextTick(() => {
+      sidebarItemRefs.value[focusedSidebarIndex.value]?.focus();
+    });
   }
 }
 

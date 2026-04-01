@@ -35,7 +35,7 @@
 </template>
 
 <script lang="ts" setup>
-import { computed } from 'vue';
+import { computed, nextTick } from 'vue';
 import { defaultShortcuts, type AppSettings, type Shortcut, type ShortcutType } from '../../settings.ts';
 
 type SiteItem = {
@@ -43,6 +43,7 @@ type SiteItem = {
   url: string;
   type?: ShortcutType;
   isEnabled: boolean;
+  isCustom: boolean;
 };
 
 const props = defineProps<{
@@ -54,21 +55,28 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update-setting': [value: Partial<AppSettings>];
   'set-ref': [el: HTMLDivElement, index: number];
+  'item-removed': [index: number];
 }>();
 
 const availableShortcuts = computed<SiteItem[]>(() => {
-  // 合并默认快捷方式和用户自定义快捷方式
-  const allShortcuts = [
-    ...defaultShortcuts,
-    ...props.settings.customShortcuts
+  const allShortcuts: SiteItem[] = [
+    ...defaultShortcuts.map(shortcut => ({
+      name: shortcut.name,
+      url: shortcut.url,
+      type: shortcut.type,
+      isEnabled: props.settings.enabledShortcuts.includes(shortcut.url),
+      isCustom: false
+    })),
+    ...props.settings.customShortcuts.map(shortcut => ({
+      name: shortcut.name,
+      url: shortcut.url,
+      type: shortcut.type,
+      isEnabled: props.settings.enabledShortcuts.includes(shortcut.url),
+      isCustom: true
+    }))
   ];
   
-  return allShortcuts.map(shortcut => ({
-    name: shortcut.name,
-    url: shortcut.url,
-    type: shortcut.type,
-    isEnabled: props.settings.enabledShortcuts.includes(shortcut.url)
-  }));
+  return allShortcuts;
 });
 
 function getSiteTypeLabel(type?: ShortcutType): string {
@@ -91,17 +99,34 @@ function getSiteIcon(site: SiteItem): string {
 
 function toggleSite(site: SiteItem) {
   const currentUrls = props.settings.enabledShortcuts;
-  let newUrls: string[];
+  const currentCustomShortcuts = props.settings.customShortcuts;
+  const currentIndex = availableShortcuts.value.findIndex(s => s.url === site.url);
   
   if (site.isEnabled) {
-    // 移除
-    newUrls = currentUrls.filter(url => url !== site.url);
+    // 移除操作
+    if (site.isCustom) {
+      // 用户自定义网址：从 enabledShortcuts 和 customShortcuts 中都移除
+      const newUrls = currentUrls.filter(url => url !== site.url);
+      const newCustomShortcuts = currentCustomShortcuts.filter(sc => sc.url !== site.url);
+      emit('update-setting', { 
+        enabledShortcuts: newUrls,
+        customShortcuts: newCustomShortcuts
+      });
+      
+      // 通知父组件该项已被删除，需要调整焦点
+      nextTick(() => {
+        emit('item-removed', currentIndex);
+      });
+    } else {
+      // 系统默认网址：仅从 enabledShortcuts 中移除，保留重新添加能力
+      const newUrls = currentUrls.filter(url => url !== site.url);
+      emit('update-setting', { enabledShortcuts: newUrls });
+    }
   } else {
-    // 添加
-    newUrls = [...currentUrls, site.url];
+    // 添加操作
+    const newUrls = [...currentUrls, site.url];
+    emit('update-setting', { enabledShortcuts: newUrls });
   }
-  
-  emit('update-setting', { enabledShortcuts: newUrls });
 }
 
 function setSiteItemRef(el: HTMLDivElement, index: number) {
