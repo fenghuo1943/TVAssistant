@@ -10,8 +10,11 @@
         :tabindex="focusedIndex === index ? 0 : -1"
       >
         <div class="site-info">
-          <span class="site-icon">{{ getSiteIcon(site.name) }}</span>
-          <span class="site-name">{{ site.name }}</span>
+          <span class="site-icon">{{ getSiteIcon(site) }}</span>
+          <div class="site-details">
+            <span class="site-name">{{ site.name }}</span>
+            <span class="site-type">{{ getSiteTypeLabel(site.type) }}</span>
+          </div>
         </div>
         <div class="site-status">
           <span class="status-text" :class="site.isEnabled ? 'is-enabled' : 'is-disabled'">
@@ -33,11 +36,12 @@
 
 <script lang="ts" setup>
 import { computed } from 'vue';
-import { defaultShortcuts, type AppSettings } from '../../settings.ts';
+import { defaultShortcuts, type AppSettings, type Shortcut, type ShortcutType } from '../../settings.ts';
 
 type SiteItem = {
   name: string;
   url: string;
+  type?: ShortcutType;
   isEnabled: boolean;
 };
 
@@ -53,21 +57,36 @@ const emit = defineEmits<{
 }>();
 
 const availableShortcuts = computed<SiteItem[]>(() => {
-  return defaultShortcuts.map(shortcut => ({
+  // 合并默认快捷方式和用户自定义快捷方式
+  const allShortcuts = [
+    ...defaultShortcuts,
+    ...props.settings.customShortcuts
+  ];
+  
+  return allShortcuts.map(shortcut => ({
     name: shortcut.name,
     url: shortcut.url,
+    type: shortcut.type,
     isEnabled: props.settings.enabledShortcuts.includes(shortcut.url)
   }));
 });
 
-function getSiteIcon(name: string): string {
+function getSiteTypeLabel(type?: ShortcutType): string {
+  return type === 'application' ? '本地应用' : '网站';
+}
+
+function getSiteIcon(site: SiteItem): string {
+  if (site.type === 'application') {
+    return '💻';
+  }
+  
   const iconMap: Record<string, string> = {
     'TV 直播': '📺',
     '央视片库': '🎬',
     '抖音': '🎵',
     '腾讯视频': '🎞️'
   };
-  return iconMap[name] || '🌐';
+  return iconMap[site.name] || '🌐';
 }
 
 function toggleSite(site: SiteItem) {
@@ -127,6 +146,12 @@ function setSiteItemRef(el: HTMLDivElement, index: number) {
   gap: 14px;
 }
 
+.site-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .site-icon {
   font-size: 24px;
   line-height: 1;
@@ -136,6 +161,12 @@ function setSiteItemRef(el: HTMLDivElement, index: number) {
   font-size: 17px;
   font-weight: 600;
   color: rgba(247, 251, 255, 0.94);
+}
+
+.site-type {
+  font-size: 13px;
+  color: rgba(200, 210, 220, 0.7);
+  font-weight: 500;
 }
 
 .site-status {

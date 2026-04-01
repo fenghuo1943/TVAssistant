@@ -160,19 +160,39 @@ function handleSubmit() {
     return;
   }
   
-  // 添加到默认快捷方式列表
+  // 创建新的快捷方式，自动获取 favicon 作为图标
+  const url = formData.value.url.trim();
+  let iconUrl = '';
+  
+  try {
+    const urlObj = new URL(url);
+    // 使用 Google Favicon 服务获取网站图标
+    iconUrl = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=256`;
+  } catch (error) {
+    console.error('解析 URL 失败:', error);
+  }
+  
   const newShortcut: Shortcut = {
     name: formData.value.name.trim(),
     badge: formData.value.name.trim().toUpperCase().slice(0, 4),
-    url: formData.value.url.trim(),
-    theme: 'theme-custom'
+    url: url,
+    theme: 'theme-custom',
+    type: 'website',
+    icon: iconUrl // 自动获取的图标
   };
   
-  defaultShortcuts.push(newShortcut);
+  // 添加到用户自定义快捷方式列表（创建纯 JSON 拷贝，避免 IPC 序列化问题）
+  const newCustomShortcuts = JSON.parse(JSON.stringify([
+    ...props.settings.customShortcuts,
+    newShortcut
+  ]));
   
   // 自动启用该快捷方式
   const newUrls = [...new Set([...props.settings.enabledShortcuts, newShortcut.url])];
-  emit('update-setting', { enabledShortcuts: newUrls });
+  emit('update-setting', { 
+    customShortcuts: newCustomShortcuts,
+    enabledShortcuts: newUrls 
+  });
   
   // 显示成功消息
   submitMessageType.value = 'success';

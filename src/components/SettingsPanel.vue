@@ -162,7 +162,7 @@ function handleSidebarKeydown(event: KeyboardEvent) {
   const { key } = event;
   
   // 在侧边栏按 Backspace 或 Escape：关闭设置页面
-  if (key === 'Backspace' || key === 'Escape') {
+  if (key === 'Escape') {
     event.preventDefault();
     emit('back');
     return;
@@ -224,7 +224,7 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
   const { key } = event;
   
   // 在常规设置页面按 Backspace 或 Escape：返回侧边栏
-  if (key === 'Backspace' || key === 'Escape') {
+  if (key === 'Escape') {
     event.preventDefault();
     // 回到侧边栏，保持当前选中的菜单项
     const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
@@ -338,7 +338,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
   const { key } = event;
   
   // 在网址管理页面按 Backspace 或 Escape：返回侧边栏
-  if (key === 'Backspace' || key === 'Escape') {
+  if (key === 'Escape') {
     event.preventDefault();
     // 回到侧边栏，保持当前选中的菜单项
     const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
@@ -458,7 +458,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
   const { key } = event;
   
   // 在添加新网址页面按 Backspace 或 Escape：返回侧边栏
-  if (key === 'Backspace' || key === 'Escape') {
+  if (key === 'Escape') {
     event.preventDefault();
     // 回到侧边栏，保持当前选中的菜单项
     const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);

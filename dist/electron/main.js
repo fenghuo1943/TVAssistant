@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 const isDevelopment = process.env.NODE_ENV === 'development';
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
 const rendererHtmlPath = path.resolve(__dirname, '../index.html');
-const forwardedKeys = new Set(['Enter', ' ', 'Escape', 'Backspace', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '-', '_', '=', '+']);
+const forwardedKeys = new Set(['Enter', ' ', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', '-', '_', '=', '+']);
 let isSettingsPanelFocused = false;
 let win;
 let tray = null;

@@ -51,9 +51,22 @@
       @click="$emit('open-site', item)"
       @focus="$emit('focus-card', index)"
     >
+      <!-- 调试：显示原始数据 -->
+      <div style="display: none;">
+        <!-- {{ console.log('渲染 item:', item.name, item) }} -->
+      </div>
+      
       <div class="card-art">
-        <div class="card-badge">{{ item.badge }}</div>
-        <div class="card-title">{{ item.name }}</div>
+        <div class="card-icon">
+          <img
+            v-if="hasIcon(item)"
+            :src="getIconSrc(item)"
+            :alt="item.name"
+            class="icon-image"
+            @error="handleIconError($event, item)"
+          />
+          <span v-else class="icon-fallback">{{ getFallbackIcon(item) }}</span>
+        </div>
       </div>
       <div class="card-label">{{ item.name }}</div>
     </button>
@@ -77,6 +90,62 @@ defineEmits<{
   'open-site': [item: Shortcut];
   'focus-card': [index: number];
 }>();
+
+function hasIcon(item: Shortcut): boolean {
+  
+  // 如果有自定义 icon，或者是有 url 的网站类型，都尝试显示图标
+  if (item.icon) {
+    return true;
+  }
+  if (item.type === 'website' && item.url) {
+    return true;
+  }
+  return false;
+}
+
+function getIconSrc(item: Shortcut): string {
+  // 优先使用自定义 icon
+  if (item.icon) {
+    return item.icon;
+  }
+  
+  // 网站类型自动获取 favicon（使用 Google Favicon 服务，避免跨域问题）
+  if (item.type === 'website' && item.url) {
+    try {
+      const url = new URL(item.url);
+      // 使用 Google Favicon 服务，提供更稳定的图标获取
+      const faviconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
+      return faviconUrl;
+    } catch (error) {
+      console.error(`解析 URL 失败：${item.url}`, error);
+      return '';
+    }
+  }
+  
+  return '';
+}
+
+function handleIconError(event: Event, item: Shortcut) {
+  const img = event.target as HTMLImageElement;
+  console.log(`图标加载失败：${item.name}, URL: ${img.src}`);
+  // 隐藏失败的图片
+  img.style.display = 'none';
+  // 显示备用图标
+  const parent = img.parentElement;
+  if (parent) {
+    const fallback = parent.querySelector('.icon-fallback') as HTMLElement;
+    if (fallback) {
+      fallback.style.display = 'flex';
+    }
+  }
+}
+
+function getFallbackIcon(item: Shortcut): string {
+  if (item.icon) {
+    return item.name.charAt(0).toUpperCase();
+  }
+  return item.name.charAt(0).toUpperCase();
+}
 </script>
 
 <style scoped>
@@ -196,60 +265,153 @@ defineEmits<{
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
   align-items: end;
+  padding: 20px;
 }
 
 .site-card {
   border: none;
-  background: transparent;
-  padding: 0;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 16px 12px;
+  border-radius: 14px;
   color: inherit;
   cursor: pointer;
   text-align: center;
-  transition: transform 0.24s ease, filter 0.24s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   outline: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  position: relative;
 }
 
 .site-card:hover {
-  transform: translateY(-6px);
-  filter: brightness(1.05);
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
 }
 
 .site-card.is-selected {
-  transform: translateY(-6px);
-  filter: brightness(1.08);
-}
-
-.site-card.is-selected .card-art {
-  border-color: rgba(133, 247, 255, 0.72);
-  box-shadow:
-    0 24px 44px rgba(0, 0, 0, 0.34),
-    0 0 0 2px rgba(122, 245, 255, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(34, 197, 94, 0);
+  box-shadow: 
+    0 0 0 2px rgba(34, 197, 94, 0.4),
+    0 0 20px rgba(34, 197, 94, 0.3),
+    0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
 .site-card.is-selected .card-label {
-  color: #ffffff;
+  color: rgba(34, 197, 94, 1);
+  font-weight: 600;
 }
 
 .card-art {
   position: relative;
-  overflow: hidden;
-  min-height: 148px;
-  border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow:
-    0 18px 36px rgba(0, 0, 0, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  overflow: visible;
+  min-height: 100px;
+  border-radius: 10px;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  margin-bottom: 12px;
 }
 
 .card-art::after {
+  content: none;
+}
+
+.card-icon {
+  position: relative;
+  top: 0;
+  left: 0;
+  transform: none;
+  width: 100%;
+  height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.icon-image {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.25));
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.site-card:hover .icon-image {
+  transform: scale(1.05);
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.3));
+}
+
+.icon-fallback {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.06));
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.2),
+    0 4px 12px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.icon-fallback::before {
   content: '';
   position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.24));
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 70%
+  );
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%) rotate(45deg);
+  }
+  100% {
+    transform: translateX(100%) rotate(45deg);
+  }
+}
+
+.site-card:hover .icon-fallback {
+  transform: scale(1.05);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+  box-shadow: 
+    inset 0 1px 1px rgba(255, 255, 255, 0.3),
+    0 6px 16px rgba(0, 0, 0, 0.25);
+}
+
+.site-card .card-label {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: color 0.3s ease;
+  line-height: 1.4;
 }
 
 .card-badge,
@@ -316,6 +478,24 @@ defineEmits<{
     linear-gradient(135deg, #040404 0%, #0f1014 45%, #171f2c 100%);
 }
 
+.theme-local .card-art {
+  background:
+    radial-gradient(circle at 60% 30%, rgba(120, 255, 180, 0.18), transparent 20%),
+    linear-gradient(135deg, #0a1a12 0%, #12281a 45%, #1a3a2a 100%);
+}
+
+.theme-system .card-art {
+  background:
+    radial-gradient(circle at 60% 30%, rgba(180, 200, 255, 0.18), transparent 20%),
+    linear-gradient(135deg, #121828 0%, #1a2338 45%, #283050 100%);
+}
+
+.theme-custom .card-art {
+  background:
+    radial-gradient(circle at 60% 30%, rgba(255, 200, 100, 0.18), transparent 20%),
+    linear-gradient(135deg, #1a1a2e 0%, #16213e 45%, #0f3460 100%);
+}
+
 @media (max-width: 1100px) {
   .hero-panel {
     width: min(66vw, 520px);
@@ -324,16 +504,30 @@ defineEmits<{
   }
 
   .card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .site-card {
+    padding: 12px;
   }
 
   .card-art {
-    min-height: 132px;
+    min-height: 80px;
+  }
+
+  .card-icon {
+    height: 80px;
+  }
+
+  .icon-image,
+  .icon-fallback {
+    width: 56px;
+    height: 56px;
   }
 
   .card-label {
-    font-size: 22px;
+    font-size: 13px;
   }
 }
 
@@ -351,7 +545,31 @@ defineEmits<{
   }
 
   .card-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .site-card {
+    padding: 10px;
+  }
+
+  .card-art {
+    min-height: 72px;
+  }
+
+  .card-icon {
+    height: 72px;
+  }
+
+  .icon-image,
+  .icon-fallback {
+    width: 48px;
+    height: 48px;
+  }
+
+  .card-label {
+    font-size: 12px;
   }
 }
 </style>

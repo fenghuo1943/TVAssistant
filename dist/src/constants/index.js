@@ -43,25 +43,33 @@ export const DEFAULT_SHORTCUTS = [
         name: 'TV 直播',
         badge: 'LIVE',
         url: 'https://www.yangshipin.cn/tv/home',
-        theme: 'theme-live'
+        theme: 'theme-live',
+        type: 'website',
+        icon: 'https://www.google.com/s2/favicons?domain=www.yangshipin.cn&sz=256'
     },
     {
         name: '央视片库',
         badge: 'CCTV',
         url: 'https://tv.cctv.com/',
-        theme: 'theme-cctv'
+        theme: 'theme-cctv',
+        type: 'website',
+        icon: 'https://tv.cctv.com/favicon.ico'
     },
     {
         name: '抖音',
         badge: 'DY',
         url: 'https://www.douyin.com/',
-        theme: 'theme-douyin'
+        theme: 'theme-douyin',
+        type: 'website',
+        icon: 'https://www.google.com/s2/favicons?domain=www.douyin.com&sz=256'
     },
     {
         name: '腾讯视频',
         badge: 'QQ',
         url: 'https://v.qq.com/',
-        theme: 'theme-tencent'
+        theme: 'theme-tencent',
+        type: 'website',
+        icon: 'https://www.google.com/s2/favicons?domain=v.qq.com&sz=256'
     }
 ];
 /**

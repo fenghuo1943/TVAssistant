@@ -51,7 +51,6 @@ import type { IpcRenderer, PluginConfig, BrowserPlugin } from './plugins/types.t
 import { withRetry, showError, debounce, throttle } from './utils/errorHandler.ts';
 import { 
   SETTINGS_MENU_KEYS, 
-  DEFAULT_SHORTCUTS,
   type SettingsMenuKey 
 } from './constants/index.ts';
 import { 
@@ -59,6 +58,7 @@ import {
   createSingleRefManager
 } from './utils/refManager.ts';
 import { defaultSettings, type AppSettings, type Shortcut } from './settings.ts';
+import { DEFAULT_SHORTCUTS } from './constants/index.ts';
 
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
   .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
@@ -100,7 +100,14 @@ const formatter = new Intl.DateTimeFormat('zh-CN', {
 });
 
 const shortcuts = computed(() => {
-  return DEFAULT_SHORTCUTS.filter((shortcut: Shortcut) => 
+  // 合并默认快捷方式和用户自定义快捷方式
+  const allShortcuts = [
+    ...DEFAULT_SHORTCUTS,
+    ...appState.settings.customShortcuts
+  ];
+  
+  // 过滤出已启用的快捷方式
+  return allShortcuts.filter((shortcut: Shortcut) => 
     appState.settings.enabledShortcuts.includes(shortcut.url)
   );
 });
@@ -324,9 +331,12 @@ async function loadSettings(): Promise<void> {
 
 async function saveSettings(value: Partial<AppSettings>): Promise<void> {
   try {
+    // 创建纯 JSON 拷贝，避免 IPC 序列化问题
+    const serializedValue = JSON.parse(JSON.stringify(value));
+    
     await withRetry(
       async () => {
-        const response = await ipcRenderer?.invoke<Partial<AppSettings>>('settings:set', value);
+        const response = await ipcRenderer?.invoke<Partial<AppSettings>>('settings:set', serializedValue);
         return response;
       },
       {
@@ -345,6 +355,7 @@ async function saveSettings(value: Partial<AppSettings>): Promise<void> {
     showError('设置已保存', { level: 'info' });
   } catch (error) {
     showError('保存设置失败，请稍后重试');
+    console.error('保存设置失败:', error);
     throw error;
   }
 }
@@ -493,7 +504,7 @@ function handleKeydown(event: KeyboardEvent) {
 
   if (appState.activeUrl) {
     if (liveMenu.state.visible) {
-      if (event.key === 'Escape' || event.key === 'Backspace') {
+      if (event.key === 'Escape') {
         event.preventDefault();
         closeLiveMenu();
         return;
@@ -556,7 +567,7 @@ function handleKeydown(event: KeyboardEvent) {
       return;
     }
 
-    if (event.key === 'Escape' || event.key === 'Backspace') {
+    if (event.key === 'Escape') {
       event.preventDefault();
       goHome();
     }
