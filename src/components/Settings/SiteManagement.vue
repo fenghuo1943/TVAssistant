@@ -277,7 +277,6 @@ function openEditDialog(site: SiteItem, index: number) {
 }
 
 function closeEditDialog() {
-  console.log('[SiteManagement] closeEditDialog called');
   isEditDialogOpen.value = false;
   editingSiteIndex.value = -1;
   editingSiteUrl.value = '';
@@ -293,7 +292,6 @@ function closeEditDialog() {
   };
   emit('close-edit-dialog');
   emit('edit-dialog-state-change', false);
-  console.log('[SiteManagement] closeEditDialog emitted event');
   
   // 关闭弹窗后，恢复焦点到网址列表
   nextTick(() => {
@@ -676,13 +674,14 @@ function handleEditDialogKeydown(event: KeyboardEvent) {
 .action-btn {
   flex: 1;
   padding: 12px 24px;
-  border: none;
+  border: 2px solid transparent;
   border-radius: 10px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.2s ease;
   outline: none;
+  position: relative;
 }
 
 .action-btn.confirm-btn {
@@ -698,19 +697,43 @@ function handleEditDialogKeydown(event: KeyboardEvent) {
 .action-btn:hover,
 .action-btn:focus-visible,
 .action-btn.is-focused {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* 确认按钮焦点增强 */
+.action-btn.confirm-btn:focus-visible,
+.action-btn.confirm-btn.is-focused {
+  background: linear-gradient(135deg, #3aa3f0, #1c90e8);
+  border-color: rgba(58, 163, 240, 0.6);
+  box-shadow: 
+    0 6px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 4px rgba(58, 163, 240, 0.15),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.2);
+}
+
+/* 取消按钮焦点增强 */
+.action-btn.cancel-btn:focus-visible,
+.action-btn.cancel-btn.is-focused {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  box-shadow: 
+    0 6px 16px rgba(0, 0, 0, 0.3),
+    0 0 0 4px rgba(255, 255, 255, 0.1),
+    inset 0 0 0 2px rgba(255, 255, 255, 0.15);
 }
 
 .action-btn.confirm-btn:hover,
 .action-btn.confirm-btn:focus-visible,
 .action-btn.confirm-btn.is-focused {
   background: linear-gradient(135deg, #3aa3f0, #1c90e8);
+  border-color: rgba(58, 163, 240, 0.6);
 }
 
 .action-btn.cancel-btn:hover,
 .action-btn.cancel-btn:focus-visible,
 .action-btn.cancel-btn.is-focused {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 </style>

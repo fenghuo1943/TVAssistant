@@ -146,12 +146,8 @@ function setSiteItemRef(el: HTMLDivElement, index: number) {
 function handleKeydown(event: KeyboardEvent) {
   const { key } = event;
   
-  console.log('[handleKeydown] 捕获到按键:', key);
-  console.log('[handleKeydown] isEditDialogOpen:', isEditDialogOpen.value);
-  
   // 如果编辑弹窗打开，不处理（由 SiteManagement 组件自行处理）
   if (isEditDialogOpen.value) {
-    console.log('[handleKeydown] 弹窗打开，由 SiteManagement 处理');
     return;
   }
   
@@ -489,21 +485,18 @@ function handleSiteRemoved(removedIndex: number) {
 
 // 处理编辑弹窗打开
 function handleOpenEditDialog() {
-  console.log('[SettingsPanel] handleOpenEditDialog called');
   isEditDialogOpen.value = true;
   editDialogFocusedIndex.value = 0; // 重置焦点到第一个输入框
 }
 
 // 处理编辑弹窗关闭
 function handleCloseEditDialog() {
-  console.log('[SettingsPanel] handleCloseEditDialog called');
   isEditDialogOpen.value = false;
   editDialogFocusedIndex.value = 0;
 }
 
 // 处理编辑弹窗状态变化
 function handleEditDialogStateChange(isOpen: boolean) {
-  console.log('[SettingsPanel] handleEditDialogStateChange:', isOpen);
   isEditDialogOpen.value = isOpen;
   if (!isOpen) {
     editDialogFocusedIndex.value = 0;
