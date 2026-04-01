@@ -1,5 +1,5 @@
 <template>
-  <section class="settings-shell" ref="settingsShellRef" tabindex="0" @keydown="handleKeydown" role="application" aria-label="设置面板">
+  <section class="settings-shell" ref="settingsShellRef" tabindex="0" @keydown.capture="handleKeydown" role="application" aria-label="设置面板">
     <header class="settings-header">
       <button type="button" class="back-button" ref="backButtonRef" @click="$emit('back')" aria-label="返回上一页">
         ← 返回
@@ -33,6 +33,7 @@
           @item-removed="handleSiteRemoved"
           @open-edit-dialog="handleOpenEditDialog"
           @close-edit-dialog="handleCloseEditDialog"
+          @edit-dialog-state-change="handleEditDialogStateChange"
         />
         
         <AddSiteForm
@@ -96,6 +97,7 @@ const addSiteFormRef = ref<InstanceType<typeof AddSiteForm> | null>(null);
 
 // 编辑弹窗状态
 const isEditDialogOpen = ref(false);
+const editDialogFocusedIndex = ref(0); // 0: 名称输入框，1: URL 输入框，2: 图标输入框，3: 确认按钮，4: 取消按钮
 
 const menuItems: Array<{ key: SettingsMenuKey; label: string }> = [
   { key: 'general', label: '常规' },
@@ -144,8 +146,12 @@ function setSiteItemRef(el: HTMLDivElement, index: number) {
 function handleKeydown(event: KeyboardEvent) {
   const { key } = event;
   
-  // 如果编辑弹窗打开，不处理其他键盘事件
+  console.log('[handleKeydown] 捕获到按键:', key);
+  console.log('[handleKeydown] isEditDialogOpen:', isEditDialogOpen.value);
+  
+  // 如果编辑弹窗打开，不处理（由 SiteManagement 组件自行处理）
   if (isEditDialogOpen.value) {
+    console.log('[handleKeydown] 弹窗打开，由 SiteManagement 处理');
     return;
   }
   
@@ -483,12 +489,43 @@ function handleSiteRemoved(removedIndex: number) {
 
 // 处理编辑弹窗打开
 function handleOpenEditDialog() {
+  console.log('[SettingsPanel] handleOpenEditDialog called');
   isEditDialogOpen.value = true;
+  editDialogFocusedIndex.value = 0; // 重置焦点到第一个输入框
 }
 
 // 处理编辑弹窗关闭
 function handleCloseEditDialog() {
+  console.log('[SettingsPanel] handleCloseEditDialog called');
   isEditDialogOpen.value = false;
+  editDialogFocusedIndex.value = 0;
+}
+
+// 处理编辑弹窗状态变化
+function handleEditDialogStateChange(isOpen: boolean) {
+  console.log('[SettingsPanel] handleEditDialogStateChange:', isOpen);
+  isEditDialogOpen.value = isOpen;
+  if (!isOpen) {
+    editDialogFocusedIndex.value = 0;
+  }
+}
+
+// 注意：编辑弹窗的键盘事件现在由 SiteManagement 组件自行处理
+
+// 聚焦编辑弹窗中的指定元素
+function focusEditDialogElement() {
+  const elements = [
+    document.querySelector('#edit-name-input') as HTMLElement,
+    document.querySelector('#edit-url-input') as HTMLElement,
+    document.querySelector('#edit-icon-input') as HTMLElement,
+    document.querySelector('.dialog-content .confirm-btn') as HTMLElement,
+    document.querySelector('.dialog-content .cancel-btn') as HTMLElement
+  ];
+  
+  const targetElement = elements[editDialogFocusedIndex.value];
+  if (targetElement) {
+    targetElement.focus();
+  }
 }
 
 function handleAddSiteKeydown(event: KeyboardEvent) {

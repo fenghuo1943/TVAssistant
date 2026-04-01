@@ -41,8 +41,8 @@
     </div>
 
     <!-- 编辑网址弹窗 -->
-    <div v-if="isEditDialogOpen" class="dialog-overlay" @click="closeEditDialog">
-      <div class="dialog-content" @click.stop role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
+    <div v-if="isEditDialogOpen" class="dialog-overlay" @click="closeEditDialog" @keydown.capture="handleEditDialogKeydown" tabindex="-1">
+      <div class="dialog-content" @click.stop role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title" tabindex="0">
         <h3 id="edit-dialog-title" class="dialog-title">编辑网址</h3>
         
         <div class="form-row">
@@ -140,6 +140,7 @@ const emit = defineEmits<{
   'item-removed': [index: number];
   'open-edit-dialog': [];
   'close-edit-dialog': [];
+  'edit-dialog-state-change': [isOpen: boolean];
 }>();
 
 const availableShortcuts = computed<SiteItem[]>(() => {
@@ -215,6 +216,10 @@ function toggleSite(site: SiteItem) {
 
 function setSiteItemRef(el: HTMLDivElement, index: number) {
   emit('set-ref', el, index);
+  // 同时保存到本地引用数组
+  if (el) {
+    siteItemRefs.value[index] = el;
+  }
 }
 
 // 编辑弹窗相关
@@ -226,6 +231,7 @@ const editUrlInputRef = ref<HTMLInputElement | null>(null);
 const editIconInputRef = ref<HTMLInputElement | null>(null);
 const editConfirmBtnRef = ref<HTMLButtonElement | null>(null);
 const editCancelBtnRef = ref<HTMLButtonElement | null>(null);
+const siteItemRefs = ref<HTMLDivElement[]>([]); // 网址列表项引用
 
 const editFormData = ref({
   name: '',
@@ -262,6 +268,7 @@ function openEditDialog(site: SiteItem, index: number) {
     icon: ''
   };
   isEditDialogOpen.value = true;
+  emit('edit-dialog-state-change', true);
   
   nextTick(() => {
     editNameInputRef.value?.focus();
@@ -270,8 +277,10 @@ function openEditDialog(site: SiteItem, index: number) {
 }
 
 function closeEditDialog() {
+  console.log('[SiteManagement] closeEditDialog called');
   isEditDialogOpen.value = false;
   editingSiteIndex.value = -1;
+  editingSiteUrl.value = '';
   editFormData.value = {
     name: '',
     url: '',
@@ -283,6 +292,15 @@ function closeEditDialog() {
     icon: ''
   };
   emit('close-edit-dialog');
+  emit('edit-dialog-state-change', false);
+  console.log('[SiteManagement] closeEditDialog emitted event');
+  
+  // 关闭弹窗后，恢复焦点到网址列表
+  nextTick(() => {
+    if (siteItemRefs.value.length > 0) {
+      siteItemRefs.value[0]?.focus();
+    }
+  });
 }
 
 function validateEditForm(): boolean {
@@ -357,6 +375,94 @@ function handleEditConfirm() {
   });
   
   closeEditDialog();
+}
+
+// 处理编辑弹窗的键盘导航
+function handleEditDialogKeydown(event: KeyboardEvent) {
+  if (!isEditDialogOpen.value) {
+    return;
+  }
+  
+  const { key } = event;
+  const focusedElement = document.activeElement as HTMLElement;
+  
+  // 检查是否在输入框内
+  const isInputElement = focusedElement?.tagName === 'INPUT';
+  
+  // Escape 键：关闭弹窗
+  if (key === 'Escape') {
+    event.preventDefault();
+    closeEditDialog();
+    return;
+  }
+  
+  // Tab 键：阻止默认行为
+  if (key === 'Tab') {
+    event.preventDefault();
+    return;
+  }
+  
+  // Enter 键：如果在按钮上，触发点击；如果在输入框上，移动到下一个
+  if (key === 'Enter') {
+    event.preventDefault();
+    if (focusedElement?.classList.contains('confirm-btn')) {
+      (document.querySelector('.dialog-content .confirm-btn') as HTMLButtonElement)?.click();
+    } else if (focusedElement?.classList.contains('cancel-btn')) {
+      (document.querySelector('.dialog-content .cancel-btn') as HTMLButtonElement)?.click();
+    } else {
+      // 在输入框上，移动到下一个元素
+      const elements = [
+        document.querySelector('#edit-name-input'),
+        document.querySelector('#edit-url-input'),
+        document.querySelector('#edit-icon-input'),
+        document.querySelector('.dialog-content .confirm-btn'),
+        document.querySelector('.dialog-content .cancel-btn')
+      ];
+      const currentIndex = elements.findIndex(el => el === focusedElement);
+      const nextIndex = (currentIndex + 1) % elements.length;
+      (elements[nextIndex] as HTMLElement)?.focus();
+    }
+    return;
+  }
+  
+  // 方向键：在元素之间切换
+  if (key === 'ArrowUp' || key === 'ArrowDown') {
+    // 始终阻止默认行为，只切换焦点
+    event.preventDefault();
+    const elements = [
+      document.querySelector('#edit-name-input'),
+      document.querySelector('#edit-url-input'),
+      document.querySelector('#edit-icon-input'),
+      document.querySelector('.dialog-content .confirm-btn'),
+      document.querySelector('.dialog-content .cancel-btn')
+    ];
+    const focusedElement = document.activeElement as HTMLElement;
+    const currentIndex = elements.findIndex(el => el === focusedElement);
+    const direction = key === 'ArrowUp' ? -1 : 1;
+    const nextIndex = ((currentIndex + direction) % elements.length + elements.length) % elements.length;
+    (elements[nextIndex] as HTMLElement)?.focus();
+    return;
+  }
+  
+  // 左右方向键：如果在输入框内，允许默认行为（移动光标）
+  // 如果在按钮上，在两个按钮之间切换
+  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+    const isButton = focusedElement?.classList.contains('confirm-btn') || focusedElement?.classList.contains('cancel-btn');
+    
+    if (isButton) {
+      event.preventDefault();
+      const confirmBtn = document.querySelector('.dialog-content .confirm-btn') as HTMLElement;
+      const cancelBtn = document.querySelector('.dialog-content .cancel-btn') as HTMLElement;
+      
+      if (key === 'ArrowLeft') {
+        confirmBtn?.focus();
+      } else if (key === 'ArrowRight') {
+        cancelBtn?.focus();
+      }
+    }
+    // 如果在输入框内，不阻止默认行为，允许移动光标
+    return;
+  }
 }
 </script>
 
