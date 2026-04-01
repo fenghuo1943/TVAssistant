@@ -31,6 +31,8 @@
           @update-setting="$emit('update-setting', $event)"
           @set-ref="setSiteItemRef"
           @item-removed="handleSiteRemoved"
+          @open-edit-dialog="handleOpenEditDialog"
+          @close-edit-dialog="handleCloseEditDialog"
         />
         
         <AddSiteForm
@@ -92,6 +94,9 @@ const settingsShellRef = ref<HTMLElement | null>(null);
 const backButtonRef = ref<HTMLButtonElement | null>(null);
 const addSiteFormRef = ref<InstanceType<typeof AddSiteForm> | null>(null);
 
+// 编辑弹窗状态
+const isEditDialogOpen = ref(false);
+
 const menuItems: Array<{ key: SettingsMenuKey; label: string }> = [
   { key: 'general', label: '常规' },
   { key: 'site-management', label: '网址管理' },
@@ -103,6 +108,11 @@ const menuItems: Array<{ key: SettingsMenuKey; label: string }> = [
 // 判断是否聚焦在第二级选项上（内容区）
 const isSecondaryFocused = computed(() => {
   if (focusedSidebarIndex.value >= 0) {
+    return false;
+  }
+  
+  // 如果编辑弹窗打开，不算二级焦点
+  if (isEditDialogOpen.value) {
     return false;
   }
   
@@ -133,6 +143,11 @@ function setSiteItemRef(el: HTMLDivElement, index: number) {
 // 键盘导航处理
 function handleKeydown(event: KeyboardEvent) {
   const { key } = event;
+  
+  // 如果编辑弹窗打开，不处理其他键盘事件
+  if (isEditDialogOpen.value) {
+    return;
+  }
   
   // 如果在侧边栏
   if (focusedSidebarIndex.value >= 0) {
@@ -423,19 +438,6 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'ArrowLeft') {
-    event.preventDefault();
-    // 回到侧边栏，保持当前选中的菜单项
-    const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
-    focusedSidebarIndex.value = currentMenuIndex >= 0 ? currentMenuIndex : 0;
-    focusedSiteIndex.value = 0;
-    focusedButtonIndex.value = -1;
-    nextTick(() => {
-      sidebarItemRefs.value[focusedSidebarIndex.value]?.focus();
-    });
-    return;
-  }
-  
   if (key === 'ArrowRight') {
     event.preventDefault();
     focusedButtonIndex.value = focusedSiteIndex.value;
@@ -477,6 +479,16 @@ function handleSiteRemoved(removedIndex: number) {
       sidebarItemRefs.value[focusedSidebarIndex.value]?.focus();
     });
   }
+}
+
+// 处理编辑弹窗打开
+function handleOpenEditDialog() {
+  isEditDialogOpen.value = true;
+}
+
+// 处理编辑弹窗关闭
+function handleCloseEditDialog() {
+  isEditDialogOpen.value = false;
 }
 
 function handleAddSiteKeydown(event: KeyboardEvent) {
@@ -532,14 +544,18 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
     
     if (key === 'ArrowLeft') {
       event.preventDefault();
-      // 回到侧边栏，保持当前选中的菜单项
-      const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
-      focusedSidebarIndex.value = currentMenuIndex >= 0 ? currentMenuIndex : 0;
-      focusedInputIndex.value = -1;
-      focusedButtonIndex.value = -1;
-      nextTick(() => {
-        sidebarItemRefs.value[focusedSidebarIndex.value]?.focus();
-      });
+      if (focusedButtonIndex.value > 0) {
+        focusedButtonIndex.value--;
+        nextTick(() => {
+          addSiteFormRef.value?.confirmBtnRef?.focus();
+        });
+      } else {
+        focusedButtonIndex.value = -1;
+        focusedInputIndex.value = 1;
+        nextTick(() => {
+          addSiteFormRef.value?.siteUrlInputRef?.focus();
+        });
+      }
       return;
     }
     

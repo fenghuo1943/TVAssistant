@@ -22,6 +22,14 @@
           </span>
           <button
             type="button"
+            class="action-button edit"
+            v-if="site.isCustom"
+            @click.stop="openEditDialog(site, index)"
+          >
+            编辑
+          </button>
+          <button
+            type="button"
             class="action-button"
             :class="[site.isEnabled ? 'remove' : 'add']"
             @click.stop="toggleSite(site)"
@@ -31,11 +39,85 @@
         </div>
       </div>
     </div>
+
+    <!-- 编辑网址弹窗 -->
+    <div v-if="isEditDialogOpen" class="dialog-overlay" @click="closeEditDialog">
+      <div class="dialog-content" @click.stop role="dialog" aria-modal="true" aria-labelledby="edit-dialog-title">
+        <h3 id="edit-dialog-title" class="dialog-title">编辑网址</h3>
+        
+        <div class="form-row">
+          <label class="form-label" for="edit-name-input">网站名称</label>
+          <input
+            id="edit-name-input"
+            ref="editNameInputRef"
+            type="text"
+            class="form-input"
+            :class="{ 'is-error': editErrors.name }"
+            placeholder="例如：优酷"
+            v-model="editFormData.name"
+          />
+          <div v-if="editErrors.name" class="form-error" role="alert">
+            {{ editErrors.name }}
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label" for="edit-url-input">网址</label>
+          <input
+            id="edit-url-input"
+            ref="editUrlInputRef"
+            type="text"
+            class="form-input"
+            :class="{ 'is-error': editErrors.url }"
+            placeholder="https:// 开头"
+            v-model="editFormData.url"
+          />
+          <div v-if="editErrors.url" class="form-error" role="alert">
+            {{ editErrors.url }}
+          </div>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label" for="edit-icon-input">图标 URL（可选）</label>
+          <input
+            id="edit-icon-input"
+            ref="editIconInputRef"
+            type="text"
+            class="form-input"
+            :class="{ 'is-error': editErrors.icon }"
+            placeholder="https://example.com/icon.png"
+            v-model="editFormData.icon"
+          />
+          <div v-if="editErrors.icon" class="form-error" role="alert">
+            {{ editErrors.icon }}
+          </div>
+        </div>
+
+        <div class="form-actions">
+          <button
+            type="button"
+            class="action-btn confirm-btn"
+            ref="editConfirmBtnRef"
+            @click="handleEditConfirm"
+          >
+            确认修改
+          </button>
+          <button
+            type="button"
+            class="action-btn cancel-btn"
+            ref="editCancelBtnRef"
+            @click="closeEditDialog"
+          >
+            取消
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
 <script lang="ts" setup>
-import { computed, nextTick } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { defaultShortcuts, type AppSettings, type Shortcut, type ShortcutType } from '../../settings.ts';
 
 type SiteItem = {
@@ -56,6 +138,8 @@ const emit = defineEmits<{
   'update-setting': [value: Partial<AppSettings>];
   'set-ref': [el: HTMLDivElement, index: number];
   'item-removed': [index: number];
+  'open-edit-dialog': [];
+  'close-edit-dialog': [];
 }>();
 
 const availableShortcuts = computed<SiteItem[]>(() => {
@@ -132,6 +216,148 @@ function toggleSite(site: SiteItem) {
 function setSiteItemRef(el: HTMLDivElement, index: number) {
   emit('set-ref', el, index);
 }
+
+// 编辑弹窗相关
+const isEditDialogOpen = ref(false);
+const editingSiteIndex = ref(-1);
+const editingSiteUrl = ref(''); // 保存原始 URL
+const editNameInputRef = ref<HTMLInputElement | null>(null);
+const editUrlInputRef = ref<HTMLInputElement | null>(null);
+const editIconInputRef = ref<HTMLInputElement | null>(null);
+const editConfirmBtnRef = ref<HTMLButtonElement | null>(null);
+const editCancelBtnRef = ref<HTMLButtonElement | null>(null);
+
+const editFormData = ref({
+  name: '',
+  url: '',
+  icon: ''
+});
+
+const editErrors = ref({
+  name: '',
+  url: '',
+  icon: ''
+});
+
+function openEditDialog(site: SiteItem, index: number) {
+  // 计算在 customShortcuts 中的实际索引
+  const defaultCount = defaultShortcuts.length;
+  const customIndex = index - defaultCount;
+  
+  if (!site.isCustom || customIndex < 0 || customIndex >= props.settings.customShortcuts.length) {
+    console.error('Invalid edit attempt for non-custom shortcut');
+    return;
+  }
+  
+  editingSiteIndex.value = customIndex;
+  editingSiteUrl.value = site.url; // 保存原始 URL
+  editFormData.value = {
+    name: site.name,
+    url: site.url,
+    icon: ''
+  };
+  editErrors.value = {
+    name: '',
+    url: '',
+    icon: ''
+  };
+  isEditDialogOpen.value = true;
+  
+  nextTick(() => {
+    editNameInputRef.value?.focus();
+    emit('open-edit-dialog');
+  });
+}
+
+function closeEditDialog() {
+  isEditDialogOpen.value = false;
+  editingSiteIndex.value = -1;
+  editFormData.value = {
+    name: '',
+    url: '',
+    icon: ''
+  };
+  editErrors.value = {
+    name: '',
+    url: '',
+    icon: ''
+  };
+  emit('close-edit-dialog');
+}
+
+function validateEditForm(): boolean {
+  const name = editFormData.value.name.trim();
+  const url = editFormData.value.url.trim();
+  
+  if (!name) {
+    editErrors.value.name = '请输入网站名称';
+    return false;
+  }
+  
+  if (name.length > 20) {
+    editErrors.value.name = '网站名称不能超过 20 个字符';
+    return false;
+  }
+  
+  if (!url) {
+    editErrors.value.url = '请输入网址';
+    return false;
+  }
+  
+  try {
+    new URL(url);
+  } catch {
+    editErrors.value.url = '请输入有效的网址（以 http:// 或 https:// 开头）';
+    return false;
+  }
+  
+  editErrors.value.name = '';
+  editErrors.value.url = '';
+  return true;
+}
+
+function handleEditConfirm() {
+  if (!validateEditForm()) {
+    return;
+  }
+  
+  const index = editingSiteIndex.value;
+  if (index < 0 || index >= props.settings.customShortcuts.length) {
+    return;
+  }
+  
+  const oldUrl = editingSiteUrl.value;
+  const newUrl = editFormData.value.url.trim();
+  const wasEnabled = props.settings.enabledShortcuts.includes(oldUrl);
+  
+  // 更新自定义快捷方式
+  const updatedShortcut = {
+    ...props.settings.customShortcuts[index],
+    name: editFormData.value.name.trim(),
+    url: newUrl,
+    icon: editFormData.value.icon.trim() || undefined
+  };
+  
+  const newCustomShortcuts = [...props.settings.customShortcuts];
+  newCustomShortcuts[index] = updatedShortcut;
+  
+  // 如果原来是启用状态，需要更新 enabledShortcuts
+  let newEnabledShortcuts = props.settings.enabledShortcuts;
+  if (wasEnabled) {
+    // 移除旧 URL，添加新 URL
+    newEnabledShortcuts = [
+      ...newEnabledShortcuts.filter(url => url !== oldUrl),
+      newUrl
+    ];
+  }
+  
+  emit('update-setting', {
+    customShortcuts: newCustomShortcuts,
+    enabledShortcuts: newEnabledShortcuts
+  });
+  
+  closeEditDialog();
+}
 </script>
 
 <style scoped>
@@ -200,6 +426,11 @@ function setSiteItemRef(el: HTMLDivElement, index: number) {
   gap: 12px;
 }
 
+.action-button.edit {
+  background: rgba(42, 149, 232, 0.15);
+  color: #2a95e8;
+}
+
 .status-text {
   font-size: 14px;
   font-weight: 500;
@@ -250,6 +481,130 @@ function setSiteItemRef(el: HTMLDivElement, index: number) {
 .action-button.remove:hover,
 .action-button.remove:focus-visible,
 .action-button.remove.is-focused {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.action-button.edit:hover,
+.action-button.edit:focus-visible,
+.action-button.edit.is-focused {
+  background: rgba(42, 149, 232, 0.25);
+}
+
+/* 编辑弹窗样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background: rgba(30, 30, 40, 0.98);
+  border-radius: 16px;
+  padding: 32px;
+  width: 100%;
+  max-width: 500px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.dialog-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: rgba(247, 251, 255, 0.94);
+  margin: 0 0 24px 0;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.form-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(200, 210, 220, 0.9);
+}
+
+.form-input {
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(247, 251, 255, 0.94);
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-input:focus,
+.form-input:focus-visible {
+  border-color: rgba(42, 149, 232, 0.5);
+  box-shadow: 0 0 0 3px rgba(42, 149, 232, 0.2);
+}
+
+.form-input.is-error {
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.form-error {
+  font-size: 13px;
+  color: rgba(239, 68, 68, 0.9);
+  margin-top: 4px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.action-btn {
+  flex: 1;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  outline: none;
+}
+
+.action-btn.confirm-btn {
+  background: linear-gradient(135deg, #2a95e8, #1882d8);
+  color: #ffffff;
+}
+
+.action-btn.cancel-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(241, 245, 248, 0.92);
+}
+
+.action-btn:hover,
+.action-btn:focus-visible,
+.action-btn.is-focused {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.action-btn.confirm-btn:hover,
+.action-btn.confirm-btn:focus-visible,
+.action-btn.confirm-btn.is-focused {
+  background: linear-gradient(135deg, #3aa3f0, #1c90e8);
+}
+
+.action-btn.cancel-btn:hover,
+.action-btn.cancel-btn:focus-visible,
+.action-btn.cancel-btn.is-focused {
   background: rgba(255, 255, 255, 0.12);
 }
 </style>
