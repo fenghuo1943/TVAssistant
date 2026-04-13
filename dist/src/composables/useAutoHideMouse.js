@@ -36,78 +36,31 @@ function buildWebviewCursorScript(hideDelay) {
       const root = document.documentElement;
       const state = window.__tvAssistantAutoHideCursor ?? {
         enabled: false,
-        timer: null,
-        hideDelay: ${hideDelay},
-        lastPointerX: null,
-        lastPointerY: null,
-        onPointerActivity: null,
-        pointerEvents: ['mousemove', 'mousedown', 'mouseup', 'wheel']
+        hideDelay: ${hideDelay}
       };
 
       state.hideDelay = ${hideDelay};
 
-      const showCursor = () => {
-        root.classList.remove(HIDDEN_CLASS);
-      };
-
-      const hideCursor = () => {
-        root.classList.add(HIDDEN_CLASS);
-      };
-
-      const clearTimer = () => {
-        if (state.timer) {
-          clearTimeout(state.timer);
-          state.timer = null;
-        }
-      };
-
-      const resetTimer = () => {
-        if (!state.enabled) {
-          return;
-        }
-
-        showCursor();
-        clearTimer();
-        state.timer = window.setTimeout(() => {
-          hideCursor();
-        }, state.hideDelay);
-      };
-
-      if (!state.onMouseMove) {
-        state.onPointerActivity = (event) => {
-          if (event.type === 'mousemove') {
-            if (state.lastPointerX === event.clientX && state.lastPointerY === event.clientY) {
-              return;
-            }
-
-            state.lastPointerX = event.clientX;
-            state.lastPointerY = event.clientY;
-          }
-
-          resetTimer();
-        };
-      }
-
       state.enable = () => {
-        if (!state.enabled) {
-          state.pointerEvents.forEach((eventName) => {
-            document.addEventListener(eventName, state.onPointerActivity, { passive: true, capture: true });
-          });
-          state.enabled = true;
-        }
-
-        resetTimer();
+        state.enabled = true;
+        root.classList.remove(HIDDEN_CLASS);
       };
 
       state.disable = () => {
         state.enabled = false;
-        state.pointerEvents.forEach((eventName) => {
-          document.removeEventListener(eventName, state.onPointerActivity, true);
-        });
-        clearTimer();
-        state.lastPointerX = null;
-        state.lastPointerY = null;
-        showCursor();
+        root.classList.remove(HIDDEN_CLASS);
+      };
+
+      state.show = () => {
+        root.classList.remove(HIDDEN_CLASS);
+      };
+
+      state.hide = () => {
+        if (!state.enabled) {
+          return;
+        }
+
+        root.classList.add(HIDDEN_CLASS);
       };
 
       window.__tvAssistantAutoHideCursor = state;
@@ -124,6 +77,24 @@ function buildDisableWebviewCursorScript() {
     })();
   `;
 }
+function buildSetWebviewCursorVisibilityScript(visible) {
+    return `
+    (() => {
+      const controller = window.__tvAssistantAutoHideCursor;
+      if (!controller) {
+        return false;
+      }
+
+      if (${visible ? 'true' : 'false'}) {
+        controller.show?.();
+      } else {
+        controller.hide?.();
+      }
+
+      return true;
+    })();
+  `;
+}
 export function useAutoHideMouse(options = {}) {
     const { hideDelay = 3000, immediate = false } = options;
     const isEnabled = ref(immediate);
@@ -131,9 +102,15 @@ export function useAutoHideMouse(options = {}) {
     const webviewRef = ref(null);
     const isWebviewReady = ref(false);
     let hideTimer = null;
+    let pollTimer = null;
     let isMounted = false;
+    let lastCursorPoint = null;
+    const robot = (window.require?.('robotjs') ?? null);
     function applyHostCursorVisibility(visible) {
         document.documentElement.classList.toggle(HOST_CURSOR_HIDDEN_CLASS, !visible);
+        if (webviewRef.value) {
+            webviewRef.value.style.cursor = visible ? '' : 'none';
+        }
     }
     function clearHideTimer() {
         if (hideTimer) {
@@ -141,16 +118,39 @@ export function useAutoHideMouse(options = {}) {
             hideTimer = null;
         }
     }
+    function clearPollTimer() {
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    }
+    async function syncWebviewCursorVisibility(visible) {
+        const webview = webviewRef.value;
+        if (!webview || !isWebviewReady.value) {
+            return;
+        }
+        try {
+            await webview.executeJavaScript(buildSetWebviewCursorVisibilityScript(visible), true);
+        }
+        catch (error) {
+            console.error('[AutoHideMouse] webview cursor visibility sync failed:', error);
+        }
+    }
     function showMouse() {
+        const wasVisible = isMouseVisible.value;
         isMouseVisible.value = true;
         applyHostCursorVisibility(true);
+        if (!wasVisible) {
+            void syncWebviewCursorVisibility(true);
+        }
     }
     function hideMouse() {
-        if (!isEnabled.value) {
+        if (!isEnabled.value || !isMouseVisible.value) {
             return;
         }
         isMouseVisible.value = false;
         applyHostCursorVisibility(false);
+        void syncWebviewCursorVisibility(false);
     }
     async function syncWebviewCursor(enabled) {
         const webview = webviewRef.value;
@@ -173,14 +173,36 @@ export function useAutoHideMouse(options = {}) {
         if (!isEnabled.value) {
             return;
         }
-        showMouse();
+        if (!isMouseVisible.value) {
+            showMouse();
+        }
         clearHideTimer();
         hideTimer = setTimeout(() => {
             hideMouse();
         }, hideDelay);
     }
-    function handleMouseMove() {
+    function handleCursorActivity() {
         resetHideTimer();
+    }
+    function handleMouseMove() {
+        handleCursorActivity();
+    }
+    function startCursorPolling() {
+        clearPollTimer();
+        if (!robot) {
+            return;
+        }
+        lastCursorPoint = robot.getMousePos();
+        pollTimer = setInterval(() => {
+            if (!isEnabled.value) {
+                return;
+            }
+            const currentPoint = robot.getMousePos();
+            if (!lastCursorPoint || currentPoint.x !== lastCursorPoint.x || currentPoint.y !== lastCursorPoint.y) {
+                lastCursorPoint = currentPoint;
+                handleCursorActivity();
+            }
+        }, 120);
     }
     function enable() {
         if (isEnabled.value) {
@@ -197,6 +219,7 @@ export function useAutoHideMouse(options = {}) {
             return;
         }
         isEnabled.value = false;
+        lastCursorPoint = null;
     }
     function toggle() {
         if (isEnabled.value) {
@@ -216,6 +239,7 @@ export function useAutoHideMouse(options = {}) {
         isWebviewReady.value = true;
         if (isEnabled.value) {
             void syncWebviewCursor(true);
+            void syncWebviewCursorVisibility(isMouseVisible.value);
         }
         else {
             void syncWebviewCursor(false);
@@ -227,6 +251,7 @@ export function useAutoHideMouse(options = {}) {
         applyHostCursorVisibility(true);
         if (isEnabled.value) {
             document.addEventListener('mousemove', handleMouseMove, { passive: true });
+            startCursorPolling();
             resetHideTimer();
         }
     });
@@ -236,18 +261,24 @@ export function useAutoHideMouse(options = {}) {
         }
         if (enabled) {
             document.addEventListener('mousemove', handleMouseMove, { passive: true });
+            startCursorPolling();
             resetHideTimer();
             void syncWebviewCursor(true);
+            void syncWebviewCursorVisibility(isMouseVisible.value);
             return;
         }
         document.removeEventListener('mousemove', handleMouseMove);
         clearHideTimer();
+        clearPollTimer();
+        lastCursorPoint = null;
         showMouse();
         void syncWebviewCursor(false);
     });
     onBeforeUnmount(() => {
         document.removeEventListener('mousemove', handleMouseMove);
         clearHideTimer();
+        clearPollTimer();
+        lastCursorPoint = null;
         showMouse();
         void syncWebviewCursor(false);
     });
