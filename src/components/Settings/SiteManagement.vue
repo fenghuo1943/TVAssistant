@@ -119,6 +119,12 @@
 <script lang="ts" setup>
 import { computed, nextTick, ref } from 'vue';
 import { defaultShortcuts, type AppSettings, type Shortcut, type ShortcutType } from '../../settings.ts';
+import { StandardKey } from '../../types/keyMap.js';
+import type { IpcRenderer } from '../../plugins/types.ts';
+
+// 获取 ipcRenderer
+const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
+  .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
 
 type SiteItem = {
   name: string;
@@ -126,6 +132,7 @@ type SiteItem = {
   type?: ShortcutType;
   isEnabled: boolean;
   isCustom: boolean;
+  icon?: string;
 };
 
 const props = defineProps<{
@@ -149,6 +156,7 @@ const availableShortcuts = computed<SiteItem[]>(() => {
       name: shortcut.name,
       url: shortcut.url,
       type: shortcut.type,
+      icon: (shortcut as any).icon,  // ✅ 添加 icon 字段
       isEnabled: props.settings.enabledShortcuts.includes(shortcut.url),
       isCustom: false
     })),
@@ -156,6 +164,7 @@ const availableShortcuts = computed<SiteItem[]>(() => {
       name: shortcut.name,
       url: shortcut.url,
       type: shortcut.type,
+      icon: shortcut.icon,  // ✅ 添加 icon 字段
       isEnabled: props.settings.enabledShortcuts.includes(shortcut.url),
       isCustom: true
     }))
@@ -182,17 +191,43 @@ function getSiteIcon(site: SiteItem): string {
   return iconMap[site.name] || '🌐';
 }
 
-function toggleSite(site: SiteItem) {
+async function toggleSite(site: SiteItem) {
   const currentUrls = props.settings.enabledShortcuts;
   const currentCustomShortcuts = props.settings.customShortcuts;
   const currentIndex = availableShortcuts.value.findIndex(s => s.url === site.url);
-  
   if (site.isEnabled) {
     // 移除操作
     if (site.isCustom) {
       // 用户自定义网址：从 enabledShortcuts 和 customShortcuts 中都移除
+      console.log(`[SiteManagement] 执行移除操作，site.url: ${site.url}，site.isCustom: ${site.isCustom}`);
       const newUrls = currentUrls.filter(url => url !== site.url);
       const newCustomShortcuts = currentCustomShortcuts.filter(sc => sc.url !== site.url);
+      console.log(site);
+      console.log(site.icon);
+      console.log(site.icon ? `[SiteManagement] 图标存在，正在删除图标缓存: ${site.name}` : `[SiteManagement] 图标不存在`)
+      // 删除图标缓存
+      if (site.icon) {
+        try {
+          console.log(`[SiteManagement] 正在删除图标缓存: ${site.name}`);
+          console.log(`[SiteManagement] 图标路径: ${site.icon}`);
+          
+          // 如果是本地文件路径，直接删除文件
+          if (site.icon.startsWith('file://')) {
+            // 将 file:// 路径转换为普通路径
+            const filePath = site.icon.replace('file://', '');
+            console.log(`文件路径: ${filePath}`);
+            await ipcRenderer?.invoke('icon:delete-by-path', filePath);
+          } else if (site.icon.startsWith('http://') || site.icon.startsWith('https://')) {
+            // 如果是网络 URL，通过 URL 删除
+            await ipcRenderer?.invoke('icon:delete', site.icon);
+          }
+          
+          console.log(`图标缓存已删除: ${site.name}`);
+        } catch (error) {
+          console.error('删除图标缓存失败:', error);
+        }
+      }
+      
       emit('update-setting', { 
         enabledShortcuts: newUrls,
         customShortcuts: newCustomShortcuts
@@ -332,7 +367,7 @@ function validateEditForm(): boolean {
   return true;
 }
 
-function handleEditConfirm() {
+async function handleEditConfirm() {
   if (!validateEditForm()) {
     return;
   }
@@ -346,12 +381,42 @@ function handleEditConfirm() {
   const newUrl = editFormData.value.url.trim();
   const wasEnabled = props.settings.enabledShortcuts.includes(oldUrl);
   
+  // 处理图标：如果没有提供自定义图标，自动获取 favicon 并缓存
+  let iconPath = editFormData.value.icon.trim() || undefined;
+  
+  // 如果用户没有提供自定义图标，尝试自动获取 favicon
+  if (!iconPath && newUrl) {
+    try {
+      const urlObj = new URL(newUrl);
+      iconPath = `https://favicon.im/${urlObj.hostname}`;
+      console.log(`自动生成 favicon URL: ${iconPath}`);
+    } catch (error) {
+      console.error('解析 URL 失败:', error);
+    }
+  }
+  
+  // 如果有图标 URL（无论是手动提供还是自动生成），尝试缓存
+  if (iconPath && (iconPath.startsWith('http://') || iconPath.startsWith('https://'))) {
+    try {
+      console.log(`正在缓存图标: ${editFormData.value.name}`);
+      const cachedPath = await ipcRenderer?.invoke<string>('icon:cache', iconPath);
+      if (cachedPath) {
+        console.log(`图标已缓存: ${editFormData.value.name}`);
+        iconPath = cachedPath;
+      } else {
+        console.warn(`图标缓存失败，将使用原始 URL`);
+      }
+    } catch (error) {
+      console.error('缓存图标失败:', error);
+    }
+  }
+  
   // 更新自定义快捷方式
   const updatedShortcut = {
     ...props.settings.customShortcuts[index],
     name: editFormData.value.name.trim(),
     url: newUrl,
-    icon: editFormData.value.icon.trim() || undefined
+    icon: iconPath
   };
   
   const newCustomShortcuts = [...props.settings.customShortcuts];
@@ -388,20 +453,20 @@ function handleEditDialogKeydown(event: KeyboardEvent) {
   const isInputElement = focusedElement?.tagName === 'INPUT';
   
   // Escape 键：关闭弹窗
-  if (key === 'Escape') {
+  if (key === StandardKey.BACK) {
     event.preventDefault();
     closeEditDialog();
     return;
   }
   
   // Tab 键：阻止默认行为
-  if (key === 'Tab') {
+  if (key === StandardKey.TAB) {
     event.preventDefault();
     return;
   }
   
   // Enter 键：如果在按钮上，触发点击；如果在输入框上，移动到下一个
-  if (key === 'Enter') {
+  if (key === StandardKey.CONFIRM) {
     event.preventDefault();
     if (focusedElement?.classList.contains('confirm-btn')) {
       (document.querySelector('.dialog-content .confirm-btn') as HTMLButtonElement)?.click();
@@ -424,7 +489,7 @@ function handleEditDialogKeydown(event: KeyboardEvent) {
   }
   
   // 方向键：在元素之间切换
-  if (key === 'ArrowUp' || key === 'ArrowDown') {
+  if (key === StandardKey.UP || key === StandardKey.DOWN) {
     // 始终阻止默认行为，只切换焦点
     event.preventDefault();
     const elements = [
@@ -436,7 +501,7 @@ function handleEditDialogKeydown(event: KeyboardEvent) {
     ];
     const focusedElement = document.activeElement as HTMLElement;
     const currentIndex = elements.findIndex(el => el === focusedElement);
-    const direction = key === 'ArrowUp' ? -1 : 1;
+    const direction = key === StandardKey.UP ? -1 : 1;
     const nextIndex = ((currentIndex + direction) % elements.length + elements.length) % elements.length;
     (elements[nextIndex] as HTMLElement)?.focus();
     return;
@@ -444,7 +509,7 @@ function handleEditDialogKeydown(event: KeyboardEvent) {
   
   // 左右方向键：如果在输入框内，允许默认行为（移动光标）
   // 如果在按钮上，在两个按钮之间切换
-  if (key === 'ArrowLeft' || key === 'ArrowRight') {
+  if (key === StandardKey.LEFT || key === StandardKey.RIGHT) {
     const isButton = focusedElement?.classList.contains('confirm-btn') || focusedElement?.classList.contains('cancel-btn');
     
     if (isButton) {
@@ -452,9 +517,9 @@ function handleEditDialogKeydown(event: KeyboardEvent) {
       const confirmBtn = document.querySelector('.dialog-content .confirm-btn') as HTMLElement;
       const cancelBtn = document.querySelector('.dialog-content .cancel-btn') as HTMLElement;
       
-      if (key === 'ArrowLeft') {
+      if (key === StandardKey.LEFT) {
         confirmBtn?.focus();
-      } else if (key === 'ArrowRight') {
+      } else if (key === StandardKey.RIGHT) {
         cancelBtn?.focus();
       }
     }

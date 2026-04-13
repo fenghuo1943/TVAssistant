@@ -22,3 +22,6 @@ export interface PacketV2 {
   type: number;
   payload: Buffer;
 }
+
+// 导出按键映射枚举
+export * from './keyMap.js';

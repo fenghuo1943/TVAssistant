@@ -45,7 +45,8 @@ export const DEFAULT_SHORTCUTS = [
         url: 'https://www.yangshipin.cn/tv/home',
         theme: 'theme-live',
         type: 'website',
-        icon: 'https://www.google.com/s2/favicons?domain=www.yangshipin.cn&sz=256'
+        //icon: 'https://www.google.com/s2/favicons?domain=www.yangshipin.cn&sz=256'
+        icon: 'https://favicon.im/www.yangshipin.cn'
     },
     {
         name: '央视片库',
@@ -53,7 +54,7 @@ export const DEFAULT_SHORTCUTS = [
         url: 'https://tv.cctv.com/',
         theme: 'theme-cctv',
         type: 'website',
-        icon: 'https://tv.cctv.com/favicon.ico'
+        icon: 'https://favicon.im/tv.cctv.com'
     },
     {
         name: '抖音',
@@ -61,7 +62,7 @@ export const DEFAULT_SHORTCUTS = [
         url: 'https://www.douyin.com/',
         theme: 'theme-douyin',
         type: 'website',
-        icon: 'https://www.google.com/s2/favicons?domain=www.douyin.com&sz=256'
+        icon: 'https://favicon.im/www.douyin.com'
     },
     {
         name: '腾讯视频',
@@ -69,7 +70,7 @@ export const DEFAULT_SHORTCUTS = [
         url: 'https://v.qq.com/',
         theme: 'theme-tencent',
         type: 'website',
-        icon: 'https://www.google.com/s2/favicons?domain=v.qq.com&sz=256'
+        icon: 'https://favicon.im/v.qq.com'
     }
 ];
 /**
@@ -94,19 +95,6 @@ export const IPC_CHANNELS = {
     // 网络服务相关
     NETWORK_START: 'network:start',
     NETWORK_STOP: 'network:stop'
-};
-/**
- * 键盘导航常量
- */
-export const NAVIGATION_KEYS = {
-    UP: 'ArrowUp',
-    DOWN: 'ArrowDown',
-    LEFT: 'ArrowLeft',
-    RIGHT: 'ArrowRight',
-    ENTER: 'Enter',
-    SPACE: ' ',
-    ESCAPE: 'Escape',
-    BACKSPACE: 'Backspace'
 };
 /**
  * 焦点管理常量

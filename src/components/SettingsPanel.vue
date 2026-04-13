@@ -57,6 +57,7 @@ import SiteManagement from './Settings/SiteManagement.vue';
 import AddSiteForm from './Settings/AddSiteForm.vue';
 import type { AppSettings } from '../settings.ts';
 import type { IpcRenderer } from '../plugins/types.ts';
+import { StandardKey, isInInputElement } from '../types/keyMap.js';
 
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
   .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
@@ -151,6 +152,14 @@ function handleKeydown(event: KeyboardEvent) {
     return;
   }
   
+  // 如果在输入框中，允许默认行为（输入空格等）
+  // 但方向键、返回键、菜单键仍然需要处理
+  const isInput = isInInputElement();
+  if (isInput && key === StandardKey.CONFIRM) {
+    // 在输入框中按空格键，允许输入空格
+    return;
+  }
+  
   // 如果在侧边栏
   if (focusedSidebarIndex.value >= 0) {
     handleSidebarKeydown(event);
@@ -180,13 +189,13 @@ function handleSidebarKeydown(event: KeyboardEvent) {
   const { key } = event;
   
   // 在侧边栏按 Backspace 或 Escape：关闭设置页面
-  if (key === 'Escape') {
+  if (key === StandardKey.BACK) {
     event.preventDefault();
     emit('back');
     return;
   }
   
-  if (key === 'ArrowUp') {
+  if (key === StandardKey.UP) {
     event.preventDefault();
     const newIndex = (focusedSidebarIndex.value - 1 + menuItems.length) % menuItems.length;
     focusedSidebarIndex.value = newIndex;
@@ -196,7 +205,7 @@ function handleSidebarKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'ArrowDown') {
+  if (key === StandardKey.DOWN) {
     event.preventDefault();
     const newIndex = (focusedSidebarIndex.value + 1) % menuItems.length;
     focusedSidebarIndex.value = newIndex;
@@ -206,7 +215,7 @@ function handleSidebarKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'ArrowRight' || key === 'Enter') {
+  if (key === StandardKey.RIGHT || key === StandardKey.CONFIRM) {
     event.preventDefault();
     const currentMenuKey = menuItems[focusedSidebarIndex.value].key;
     
@@ -242,7 +251,7 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
   const { key } = event;
   
   // 在常规设置页面按 Backspace 或 Escape：返回侧边栏
-  if (key === 'Escape') {
+  if (key === StandardKey.BACK) {
     event.preventDefault();
     // 回到侧边栏，保持当前选中的菜单项
     const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
@@ -254,7 +263,7 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'ArrowUp') {
+  if (key === StandardKey.UP) {
     event.preventDefault();
     if (focusedContentIndex.value > 0) {
       focusedContentIndex.value--;
@@ -273,7 +282,7 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'ArrowDown') {
+  if (key === StandardKey.DOWN) {
     event.preventDefault();
     if (focusedContentIndex.value < 2) {
       focusedContentIndex.value++;
@@ -290,7 +299,7 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'ArrowLeft') {
+  if (key === StandardKey.LEFT) {
     event.preventDefault();
     // 回到侧边栏，保持当前选中的菜单项
     const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
@@ -302,7 +311,7 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'ArrowRight' && focusedContentIndex.value === 2) {
+  if (key === StandardKey.RIGHT && focusedContentIndex.value === 2) {
     event.preventDefault();
     modeFocusedIndex.value = modeFocusedIndex.value === 0 ? 1 : 0;
     nextTick(() => {
@@ -311,7 +320,7 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'Enter') {
+  if (key === StandardKey.CONFIRM) {
     event.preventDefault();
     if(focusedContentIndex.value === 0){
       // 打开 select 下拉框
@@ -356,7 +365,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
   const { key } = event;
   
   // 在网址管理页面按 Backspace 或 Escape：返回侧边栏
-  if (key === 'Escape') {
+  if (key === StandardKey.BACK) {
     event.preventDefault();
     // 回到侧边栏，保持当前选中的菜单项
     const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
@@ -371,7 +380,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
   
   // 如果焦点在按钮上
   if (focusedButtonIndex.value >= 0) {
-    if (key === 'ArrowLeft') {
+    if (key === StandardKey.LEFT) {
       event.preventDefault();
       focusedButtonIndex.value = -1;
       nextTick(() => {
@@ -380,7 +389,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'ArrowUp') {
+    if (key === StandardKey.UP) {
       event.preventDefault();
       if (focusedButtonIndex.value > 0) {
         focusedButtonIndex.value--;
@@ -394,7 +403,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'ArrowDown') {
+    if (key === StandardKey.DOWN) {
       event.preventDefault();
       if (focusedButtonIndex.value < siteItemRefs.value.length - 1) {
         focusedButtonIndex.value++;
@@ -408,7 +417,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'Enter') {
+    if (key === StandardKey.CONFIRM) {
       event.preventDefault();
       // 触发按钮点击（通过查找 DOM 元素模拟点击）
       const button = siteItemRefs.value[focusedButtonIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
@@ -420,7 +429,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
   }
   
   // 如果焦点在网址项上
-  if (key === 'ArrowUp') {
+  if (key === StandardKey.UP) {
     event.preventDefault();
     const newIndex = (focusedSiteIndex.value - 1 + siteItemRefs.value.length) % siteItemRefs.value.length;
     focusedSiteIndex.value = newIndex;
@@ -430,7 +439,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'ArrowDown') {
+  if (key === StandardKey.DOWN) {
     event.preventDefault();
     const newIndex = (focusedSiteIndex.value + 1) % siteItemRefs.value.length;
     focusedSiteIndex.value = newIndex;
@@ -440,7 +449,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'ArrowRight') {
+  if (key === StandardKey.RIGHT) {
     event.preventDefault();
     focusedButtonIndex.value = focusedSiteIndex.value;
     nextTick(() => {
@@ -450,7 +459,7 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === 'Enter') {
+  if (key === StandardKey.CONFIRM) {
     event.preventDefault();
     // 触发现有网站的切换
     const button = siteItemRefs.value[focusedSiteIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
@@ -525,7 +534,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
   const { key } = event;
   
   // 在添加新网址页面按 Backspace 或 Escape：返回侧边栏
-  if (key === 'Escape') {
+  if (key === StandardKey.BACK) {
     event.preventDefault();
     // 回到侧边栏，保持当前选中的菜单项
     const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
@@ -540,7 +549,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
   
   // 如果焦点在输入框上
   if (focusedInputIndex.value >= 0) {
-    if (key === 'ArrowUp') {
+    if (key === StandardKey.UP) {
       event.preventDefault();
       if (focusedInputIndex.value > 0) {
         focusedInputIndex.value--;
@@ -553,7 +562,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'ArrowDown') {
+    if (key === StandardKey.DOWN) {
       event.preventDefault();
       if (focusedInputIndex.value < 1) {
         focusedInputIndex.value++;
@@ -572,7 +581,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'ArrowLeft') {
+    if (key === StandardKey.LEFT) {
       event.preventDefault();
       if (focusedButtonIndex.value > 0) {
         focusedButtonIndex.value--;
@@ -589,7 +598,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'Enter') {
+    if (key === StandardKey.CONFIRM) {
       event.preventDefault();
       if (focusedInputIndex.value === 0) {
         focusedInputIndex.value = 1;
@@ -607,7 +616,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
   
   // 如果焦点在按钮上
   if (focusedButtonIndex.value >= 0) {
-    if (key === 'ArrowLeft') {
+    if (key === StandardKey.LEFT) {
       event.preventDefault();
       if (focusedButtonIndex.value > 0) {
         focusedButtonIndex.value--;
@@ -624,7 +633,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'ArrowRight') {
+    if (key === StandardKey.RIGHT) {
       event.preventDefault();
       if (focusedButtonIndex.value < 1) {
         focusedButtonIndex.value++;
@@ -641,7 +650,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'ArrowUp') {
+    if (key === StandardKey.UP) {
       event.preventDefault();
       if (focusedButtonIndex.value > 0) {
         focusedButtonIndex.value--;
@@ -658,7 +667,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'ArrowDown') {
+    if (key === StandardKey.DOWN) {
       event.preventDefault();
       if (focusedButtonIndex.value < 1) {
         focusedButtonIndex.value++;
@@ -669,7 +678,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
       return;
     }
     
-    if (key === 'Enter') {
+    if (key === StandardKey.CONFIRM) {
       event.preventDefault();
       if (focusedButtonIndex.value === 0) {
         addSiteFormRef.value?.handleSubmit();
@@ -683,7 +692,7 @@ function handleAddSiteKeydown(event: KeyboardEvent) {
   }
   
   // 默认回到侧边栏
-  if (key === 'ArrowLeft') {
+  if (key === StandardKey.LEFT) {
     event.preventDefault();
     const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
     focusSidebar(currentMenuIndex >= 0 ? currentMenuIndex : 0, menuItems);

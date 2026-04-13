@@ -11,3 +11,5 @@ export var CommandType;
     CommandType[CommandType["TextInput"] = 20] = "TextInput";
     CommandType[CommandType["ComboKey"] = 21] = "ComboKey";
 })(CommandType || (CommandType = {}));
+// 导出按键映射枚举
+export * from './keyMap.js';

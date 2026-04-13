@@ -67,6 +67,11 @@
 <script lang="ts" setup>
 import { ref } from 'vue';
 import { defaultShortcuts, type AppSettings, type Shortcut } from '../../settings.ts';
+import type { IpcRenderer } from '../../plugins/types.ts';
+
+// 获取 ipcRenderer
+const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
+  .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
 
 const props = defineProps<{
   settings: AppSettings;
@@ -150,7 +155,7 @@ function validateUrl(): boolean {
   return true;
 }
 
-function handleSubmit() {
+async function handleSubmit() {
   submitMessage.value = '';
   
   // 只在提交时验证
@@ -167,9 +172,20 @@ function handleSubmit() {
   try {
     const urlObj = new URL(url);
     // 使用 Google Favicon 服务获取网站图标
-    iconUrl = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=256`;
+    //iconUrl = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=256`;
+    iconUrl = `https://favicon.im/${urlObj.hostname}`;
+    
+    // 尝试缓存图标
+    console.log(`正在缓存新添加网站的图标: ${formData.value.name}`);
+    const cachedPath = await ipcRenderer?.invoke<string>('icon:cache', iconUrl);
+    if (cachedPath) {
+      console.log(`图标已缓存: ${formData.value.name}`);
+      iconUrl = cachedPath; // 使用缓存路径
+    } else {
+      console.warn(`图标缓存失败，将使用网络 URL: ${formData.value.name}`);
+    }
   } catch (error) {
-    console.error('解析 URL 失败:', error);
+    console.error('解析 URL 或缓存图标失败:', error);
   }
   
   const newShortcut: Shortcut = {
@@ -178,7 +194,7 @@ function handleSubmit() {
     url: url,
     theme: 'theme-custom',
     type: 'website',
-    icon: iconUrl // 自动获取的图标
+    icon: iconUrl // 使用缓存的图标路径或原始 URL
   };
   
   // 添加到用户自定义快捷方式列表（创建纯 JSON 拷贝，避免 IPC 序列化问题）
