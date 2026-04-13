@@ -13,9 +13,10 @@
           ref="siteNameInputRef"
           type="text"
           class="form-input"
-          :class="{ 'is-error': errors.name }"
+          :class="{ 'is-error': errors.name, 'is-disabled': isSubmitting }"
           placeholder="例如：优酷"
           v-model="formData.name"
+          :disabled="isSubmitting"
         />
         <div v-if="errors.name" class="form-error" role="alert">
           {{ errors.name }}
@@ -29,9 +30,10 @@
           ref="siteUrlInputRef"
           type="text"
           class="form-input"
-          :class="{ 'is-error': errors.url }"
+          :class="{ 'is-error': errors.url, 'is-disabled': isSubmitting }"
           placeholder="https:// 开头"
           v-model="formData.url"
+          :disabled="isSubmitting"
         />
         <div v-if="errors.url" class="form-error" role="alert">
           {{ errors.url }}
@@ -44,14 +46,18 @@
           class="action-btn confirm-btn"
           ref="confirmBtnRef"
           @click="handleSubmit"
+          :disabled="isSubmitting"
+          :class="{ 'is-disabled': isSubmitting }"
         >
-          确认添加
+          {{ isSubmitting ? '添加中...' : '确认添加' }}
         </button>
         <button
           type="button"
           class="action-btn cancel-btn"
           ref="cancelBtnRef"
           @click="handleCancel"
+          :disabled="isSubmitting"
+          :class="{ 'is-disabled': isSubmitting }"
         >
           取消
         </button>
@@ -94,6 +100,7 @@ const errors = ref({
 
 const submitMessage = ref('');
 const submitMessageType = ref<'success' | 'error'>('success');
+const isSubmitting = ref(false); // 新增：提交状态标志
 
 const siteNameInputRef = ref<HTMLInputElement | null>(null);
 const siteUrlInputRef = ref<HTMLInputElement | null>(null);
@@ -156,6 +163,11 @@ function validateUrl(): boolean {
 }
 
 async function handleSubmit() {
+  // 如果正在提交，直接返回
+  if (isSubmitting.value) {
+    return;
+  }
+  
   submitMessage.value = '';
   
   // 只在提交时验证
@@ -165,67 +177,85 @@ async function handleSubmit() {
     return;
   }
   
-  // 创建新的快捷方式，自动获取 favicon 作为图标
-  const url = formData.value.url.trim();
-  let iconUrl = '';
+  // 设置提交状态为 true，禁用按钮
+  isSubmitting.value = true;
   
   try {
-    const urlObj = new URL(url);
-    // 使用 Google Favicon 服务获取网站图标
-    //iconUrl = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=256`;
-    iconUrl = `https://favicon.im/${urlObj.hostname}`;
+    // 创建新的快捷方式，自动获取 favicon 作为图标
+    const url = formData.value.url.trim();
+    let iconUrl = '';
     
-    // 尝试缓存图标
-    console.log(`正在缓存新添加网站的图标: ${formData.value.name}`);
-    const cachedPath = await ipcRenderer?.invoke<string>('icon:cache', iconUrl);
-    if (cachedPath) {
-      console.log(`图标已缓存: ${formData.value.name}`);
-      iconUrl = cachedPath; // 使用缓存路径
-    } else {
-      console.warn(`图标缓存失败，将使用网络 URL: ${formData.value.name}`);
+    try {
+      const urlObj = new URL(url);
+      // 使用 Google Favicon 服务获取网站图标
+      //iconUrl = `https://www.google.com/s2/favicons?domain=${urlObj.hostname}&sz=256`;
+      iconUrl = `https://favicon.im/${urlObj.hostname}`;
+      
+      // 尝试缓存图标
+      console.log(`正在缓存新添加网站的图标: ${formData.value.name}`);
+      const cachedPath = await ipcRenderer?.invoke<string>('icon:cache', iconUrl);
+      if (cachedPath) {
+        console.log(`图标已缓存: ${formData.value.name}`);
+        iconUrl = cachedPath; // 使用缓存路径
+      } else {
+        console.warn(`图标缓存失败，将使用网络 URL: ${formData.value.name}`);
+      }
+    } catch (error) {
+      console.error('解析 URL 或缓存图标失败:', error);
     }
+    
+    const newShortcut: Shortcut = {
+      name: formData.value.name.trim(),
+      badge: formData.value.name.trim().toUpperCase().slice(0, 4),
+      url: url,
+      theme: 'theme-custom',
+      type: 'website',
+      icon: iconUrl // 使用缓存的图标路径或原始 URL
+    };
+    
+    // 添加到用户自定义快捷方式列表（创建纯 JSON 拷贝，避免 IPC 序列化问题）
+    const newCustomShortcuts = JSON.parse(JSON.stringify([
+      ...props.settings.customShortcuts,
+      newShortcut
+    ]));
+    
+    // 自动启用该快捷方式
+    const newUrls = [...new Set([...props.settings.enabledShortcuts, newShortcut.url])];
+    emit('update-setting', { 
+      customShortcuts: newCustomShortcuts,
+      enabledShortcuts: newUrls 
+    });
+    
+    // 显示成功消息
+    submitMessageType.value = 'success';
+    submitMessage.value = `已成功添加 ${newShortcut.name}`;
+    
+    // 清空表单
+    formData.value = {
+      name: '',
+      url: ''
+    };
+    errors.value = {
+      name: '',
+      url: ''
+    };
   } catch (error) {
-    console.error('解析 URL 或缓存图标失败:', error);
+    // 处理错误情况
+    console.error('添加网址失败:', error);
+    submitMessageType.value = 'error';
+    submitMessage.value = '添加网址失败，请重试';
+  } finally {
+    // 无论成功还是失败，都恢复按钮状态
+    isSubmitting.value = false;
   }
-  
-  const newShortcut: Shortcut = {
-    name: formData.value.name.trim(),
-    badge: formData.value.name.trim().toUpperCase().slice(0, 4),
-    url: url,
-    theme: 'theme-custom',
-    type: 'website',
-    icon: iconUrl // 使用缓存的图标路径或原始 URL
-  };
-  
-  // 添加到用户自定义快捷方式列表（创建纯 JSON 拷贝，避免 IPC 序列化问题）
-  const newCustomShortcuts = JSON.parse(JSON.stringify([
-    ...props.settings.customShortcuts,
-    newShortcut
-  ]));
-  
-  // 自动启用该快捷方式
-  const newUrls = [...new Set([...props.settings.enabledShortcuts, newShortcut.url])];
-  emit('update-setting', { 
-    customShortcuts: newCustomShortcuts,
-    enabledShortcuts: newUrls 
-  });
-  
-  // 显示成功消息
-  submitMessageType.value = 'success';
-  submitMessage.value = `已成功添加 ${newShortcut.name}`;
-  
-  // 清空表单
-  formData.value = {
-    name: '',
-    url: ''
-  };
-  errors.value = {
-    name: '',
-    url: ''
-  };
 }
 
 function handleCancel() {
+  // 如果正在提交，不允许取消
+  if (isSubmitting.value) {
+    return;
+  }
+  
   formData.value = {
     name: '',
     url: ''
@@ -307,6 +337,12 @@ defineExpose({
   box-shadow: 0 0 0 3px rgba(255, 59, 48, 0.2);
 }
 
+.form-input.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: rgba(12, 20, 27, 0.6);
+}
+
 .form-error {
   font-size: 13px;
   color: rgba(255, 59, 48, 0.92);
@@ -369,6 +405,22 @@ defineExpose({
     0 0 0 3px rgba(255, 59, 48, 0.4),
     0 8px 24px rgba(255, 59, 48, 0.4),
     0 0 40px rgba(255, 59, 48, 0.2);
+}
+
+/* 禁用状态的按钮样式 */
+.action-btn.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.action-btn.confirm-btn.is-disabled {
+  background: linear-gradient(135deg, rgba(99, 194, 111, 0.5), rgba(49, 164, 245, 0.5));
+}
+
+.action-btn.cancel-btn.is-disabled {
+  background: rgba(255, 59, 48, 0.5);
 }
 
 .form-message {

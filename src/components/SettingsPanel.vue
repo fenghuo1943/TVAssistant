@@ -2,7 +2,7 @@
   <section class="settings-shell" ref="settingsShellRef" tabindex="0" @keydown.capture="handleKeydown" role="application" aria-label="设置面板">
     <header class="settings-header">
       <button type="button" class="back-button" ref="backButtonRef" @click="$emit('back')" aria-label="返回上一页">
-        ← 返回
+        返回
       </button>
       <h1 class="settings-title" id="settings-title">设置</h1>
     </header>
@@ -34,6 +34,7 @@
           @open-edit-dialog="handleOpenEditDialog"
           @close-edit-dialog="handleCloseEditDialog"
           @edit-dialog-state-change="handleEditDialogStateChange"
+          @focus-first-button="handleFocusFirstButton"
         />
         
         <AddSiteForm
@@ -232,9 +233,10 @@ function handleSidebarKeydown(event: KeyboardEvent) {
       });
     } else if (currentMenuKey === 'site-management') {
       focusedSiteIndex.value = 0;
-      focusedButtonIndex.value = -1;
+      focusedButtonIndex.value = 0;
       nextTick(() => {
-        siteItemRefs.value[0]?.focus();
+        //siteItemRefs.value[0]?.focus();
+        focusCurrentSiteButton(0);
       });
     } else if (currentMenuKey === 'add-site') {
       focusedInputIndex.value = 0;
@@ -378,94 +380,151 @@ function handleSiteManagementKeydown(event: KeyboardEvent) {
     return;
   }
   
-  // 如果焦点在按钮上
-  if (focusedButtonIndex.value >= 0) {
-    if (key === StandardKey.LEFT) {
-      event.preventDefault();
-      focusedButtonIndex.value = -1;
+  // 上下键：在当前网址项的按钮之间切换
+  if (key === StandardKey.LEFT) {
+    event.preventDefault();
+    // 在当前网址项的按钮之间向上切换
+    if (focusedButtonIndex.value > 0) {
+      focusedButtonIndex.value--;
       nextTick(() => {
-        siteItemRefs.value[focusedSiteIndex.value]?.focus();
+        focusCurrentSiteButton(focusedButtonIndex.value);
       });
-      return;
-    }
-    
-    if (key === StandardKey.UP) {
-      event.preventDefault();
-      if (focusedButtonIndex.value > 0) {
-        focusedButtonIndex.value--;
-      } else {
-        focusedButtonIndex.value = -1;
-        focusedSiteIndex.value = 0;
+    } else {
+      // 已经是第一个按钮，循环到最后一个按钮
+      const buttonCount = getCurrentSiteButtonCount();
+      if (buttonCount > 1) {
+        focusedButtonIndex.value = buttonCount - 1;
         nextTick(() => {
-          siteItemRefs.value[focusedSiteIndex.value]?.focus();
+          focusCurrentSiteButton(focusedButtonIndex.value);
         });
       }
-      return;
     }
-    
-    if (key === StandardKey.DOWN) {
-      event.preventDefault();
-      if (focusedButtonIndex.value < siteItemRefs.value.length - 1) {
-        focusedButtonIndex.value++;
-      } else {
-        focusedButtonIndex.value = -1;
-        focusedSiteIndex.value = siteItemRefs.value.length - 1;
-        nextTick(() => {
-          siteItemRefs.value[focusedSiteIndex.value]?.focus();
-        });
-      }
-      return;
-    }
-    
-    if (key === StandardKey.CONFIRM) {
-      event.preventDefault();
-      // 触发按钮点击（通过查找 DOM 元素模拟点击）
-      const button = siteItemRefs.value[focusedButtonIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
-      button?.click();
-      return;
-    }
-    
-    return;
-  }
-  
-  // 如果焦点在网址项上
-  if (key === StandardKey.UP) {
-    event.preventDefault();
-    const newIndex = (focusedSiteIndex.value - 1 + siteItemRefs.value.length) % siteItemRefs.value.length;
-    focusedSiteIndex.value = newIndex;
-    nextTick(() => {
-      siteItemRefs.value[newIndex]?.focus();
-    });
-    return;
-  }
-  
-  if (key === StandardKey.DOWN) {
-    event.preventDefault();
-    const newIndex = (focusedSiteIndex.value + 1) % siteItemRefs.value.length;
-    focusedSiteIndex.value = newIndex;
-    nextTick(() => {
-      siteItemRefs.value[newIndex]?.focus();
-    });
     return;
   }
   
   if (key === StandardKey.RIGHT) {
     event.preventDefault();
-    focusedButtonIndex.value = focusedSiteIndex.value;
-    nextTick(() => {
-      const button = siteItemRefs.value[focusedButtonIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
-      button?.focus();
-    });
+    // 在当前网址项的按钮之间向下切换
+    const buttonCount = getCurrentSiteButtonCount();
+    if (focusedButtonIndex.value < buttonCount - 1) {
+      focusedButtonIndex.value++;
+      nextTick(() => {
+        focusCurrentSiteButton(focusedButtonIndex.value);
+      });
+    } else {
+      // 已经是最后一个按钮，循环到第一个按钮
+      if (buttonCount > 1) {
+        focusedButtonIndex.value = 0;
+        nextTick(() => {
+          focusCurrentSiteButton(focusedButtonIndex.value);
+        });
+      }
+    }
+    return;
+  }
+  
+  // 左右键：在不同的网址项之间切换（保持在按钮上）
+  if (key === StandardKey.UP) {
+    event.preventDefault();
+    // 向左切换到上一个网址项
+    if (focusedSiteIndex.value > 0) {
+      focusedSiteIndex.value--;
+      // 确保按钮索引在新网址项的有效范围内
+      const buttonCount = getCurrentSiteButtonCount();
+      if (focusedButtonIndex.value >= buttonCount) {
+        focusedButtonIndex.value = Math.max(0, buttonCount - 1);
+      }
+      nextTick(() => {
+        focusCurrentSiteButton(focusedButtonIndex.value);
+      });
+    } else {
+      // 循环到最后一个网址项
+      focusedSiteIndex.value = siteItemRefs.value.length - 1;
+      // 确保按钮索引在新网址项的有效范围内
+      const buttonCount = getCurrentSiteButtonCount();
+      if (focusedButtonIndex.value >= buttonCount) {
+        focusedButtonIndex.value = Math.max(0, buttonCount - 1);
+      }
+      nextTick(() => {
+        focusCurrentSiteButton(focusedButtonIndex.value);
+      });
+    }
+    return;
+  }
+  
+  if (key === StandardKey.DOWN) {
+    event.preventDefault();
+    // 向右切换到下一个网址项
+    if (focusedSiteIndex.value < siteItemRefs.value.length - 1) {
+      focusedSiteIndex.value++;
+      // 确保按钮索引在新网址项的有效范围内
+      const buttonCount = getCurrentSiteButtonCount();
+      if (focusedButtonIndex.value >= buttonCount) {
+        focusedButtonIndex.value = Math.max(0, buttonCount - 1);
+      }
+      nextTick(() => {
+        focusCurrentSiteButton(focusedButtonIndex.value);
+      });
+    } else {
+      // 循环到第一个网址项
+      focusedSiteIndex.value = 0;
+      // 确保按钮索引在新网址项的有效范围内
+      const buttonCount = getCurrentSiteButtonCount();
+      if (focusedButtonIndex.value >= buttonCount) {
+        focusedButtonIndex.value = Math.max(0, buttonCount - 1);
+      }
+      nextTick(() => {
+        focusCurrentSiteButton(focusedButtonIndex.value);
+      });
+    }
     return;
   }
   
   if (key === StandardKey.CONFIRM) {
     event.preventDefault();
-    // 触发现有网站的切换
-    const button = siteItemRefs.value[focusedSiteIndex.value]?.querySelector('.action-button') as HTMLButtonElement | null;
+    // 触发按钮点击（通过查找 DOM 元素模拟点击）
+    const button = getButtonElementByIndex(focusedButtonIndex.value);
     button?.click();
     return;
   }
+}
+
+/**
+ * 获取当前网址项的按钮数量
+ */
+function getCurrentSiteButtonCount(): number {
+  const currentItem = siteItemRefs.value[focusedSiteIndex.value];
+  if (!currentItem) return 0;
+  
+  const buttons = currentItem.querySelectorAll('.action-button');
+  return buttons.length;
+}
+
+/**
+ * 聚焦当前网址项的指定按钮
+ */
+function focusCurrentSiteButton(buttonIndex: number) {
+  const currentItem = siteItemRefs.value[focusedSiteIndex.value];
+  if (!currentItem) return;
+  
+  const buttons = currentItem.querySelectorAll('.action-button') as NodeListOf<HTMLButtonElement>;
+  if (buttonIndex >= 0 && buttonIndex < buttons.length) {
+    buttons[buttonIndex]?.focus();
+  }
+}
+
+/**
+ * 根据按钮索引获取按钮元素
+ */
+function getButtonElementByIndex(buttonIndex: number): HTMLButtonElement | null {
+  const currentItem = siteItemRefs.value[focusedSiteIndex.value];
+  if (!currentItem) return null;
+  
+  const buttons = currentItem.querySelectorAll('.action-button') as NodeListOf<HTMLButtonElement>;
+  if (buttonIndex >= 0 && buttonIndex < buttons.length) {
+    return buttons[buttonIndex];
+  }
+  return null;
 }
 
 // 处理网址删除后的焦点调整
@@ -476,9 +535,9 @@ function handleSiteRemoved(removedIndex: number) {
   // 检查新索引是否在有效范围内
   if (newIndex < siteItemRefs.value.length) {
     focusedSiteIndex.value = newIndex;
-    focusedButtonIndex.value = -1;
+    focusedButtonIndex.value = 0;
     nextTick(() => {
-      siteItemRefs.value[newIndex]?.focus();
+      focusCurrentSiteButton(0);
     });
   } else if (siteItemRefs.value.length === 0) {
     // 如果没有网址了，返回侧边栏
@@ -510,6 +569,15 @@ function handleEditDialogStateChange(isOpen: boolean) {
   if (!isOpen) {
     editDialogFocusedIndex.value = 0;
   }
+}
+
+// 处理聚焦到第一个按钮
+function handleFocusFirstButton() {
+  focusedSiteIndex.value = 0;
+  focusedButtonIndex.value = 0;
+  nextTick(() => {
+    focusCurrentSiteButton(0);
+  });
 }
 
 // 注意：编辑弹窗的键盘事件现在由 SiteManagement 组件自行处理
@@ -704,11 +772,14 @@ onMounted(() => {
   ipcRenderer?.send('settings-panel:focus-changed', true);
   const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
     focusedSidebarIndex.value = currentMenuIndex >= 0 ? currentMenuIndex : 0;
+    console.log('当前菜单索引',currentMenuIndex);
+    //sidebarItemRefs.value[focusedSidebarIndex.value]?.focus();
   nextTick(() => {
     settingsShellRef.value?.focus();
-    setTimeout(() => {
+    
+    /* setTimeout(() => {
       sidebarItemRefs.value[0]?.focus();
-    }, 50);
+    }, 50); */
   });
 });
 

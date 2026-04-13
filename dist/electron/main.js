@@ -110,9 +110,7 @@ async function downloadIcon(url, maxRedirects = 5) {
                 'Connection': 'keep-alive'
             }
         };
-        console.log(`正在下载图标: ${url}`);
         protocol.get(url, options, (res) => {
-            console.log(`下载图标状态码: ${res.statusCode}`);
             // 处理重定向
             if (res.statusCode === 301 || res.statusCode === 302 || res.statusCode === 307 || res.statusCode === 308) {
                 const location = res.headers.location;
@@ -135,7 +133,6 @@ async function downloadIcon(url, maxRedirects = 5) {
                     const urlObj = new URL(url);
                     redirectUrl = `${urlObj.protocol}//${urlObj.host}${location}`;
                 }
-                console.log(`跟随重定向到: ${redirectUrl} (剩余次数: ${maxRedirects - 1})`);
                 // 递归调用，跟随重定向
                 res.resume(); // 消耗当前响应数据
                 downloadIcon(redirectUrl, maxRedirects - 1).then(resolve);
@@ -150,7 +147,6 @@ async function downloadIcon(url, maxRedirects = 5) {
             res.on('data', (chunk) => chunks.push(chunk));
             res.on('end', () => {
                 const buffer = Buffer.concat(chunks);
-                console.log(`图标下载成功，大小: ${buffer.length} bytes`);
                 resolve(buffer);
             });
             res.on('error', (err) => {
@@ -165,17 +161,13 @@ async function downloadIcon(url, maxRedirects = 5) {
 }
 async function cacheIcon(url) {
     try {
-        console.log('正在缓存图标123:', url);
         const cacheDir = getIconCacheDir();
         fs.mkdirSync(cacheDir, { recursive: true });
         const cachePath = getIconCachePath(url);
         // 检查是否已缓存
         if (fs.existsSync(cachePath)) {
-            console.log(`图标已缓存: ${url}`);
             return `file://${cachePath}`;
         }
-        // 下载图标
-        console.log(`正在下载图标: ${url}`);
         const iconBuffer = await downloadIcon(url);
         if (!iconBuffer || iconBuffer.length === 0) {
             console.error(`图标下载失败或为空: ${url}`);
@@ -183,7 +175,6 @@ async function cacheIcon(url) {
         }
         // 保存到缓存
         fs.writeFileSync(cachePath, iconBuffer);
-        console.log(`图标已缓存到: ${cachePath}`);
         return `file://${cachePath}`;
     }
     catch (error) {

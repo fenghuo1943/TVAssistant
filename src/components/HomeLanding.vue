@@ -93,20 +93,16 @@ import type { IpcRenderer } from '../plugins/types.ts';
 
 // 获取 ipcRenderer - 添加详细调试
 const requireFunc = (window as typeof window & { require?: (moduleName: string) => any }).require;
-console.log('[HomeLanding] require 是否存在:', typeof requireFunc);
 
 let ipcRenderer: IpcRenderer | null = null;
 if (requireFunc) {
   try {
     const electron = requireFunc('electron');
-    console.log('[HomeLanding] electron 模块:', electron ? '已加载' : '未加载');
     ipcRenderer = electron?.ipcRenderer ?? null;
-    console.log('[HomeLanding] ipcRenderer:', ipcRenderer ? '已获取' : '未获取');
     
     // 测试 IPC 调用
     if (ipcRenderer) {
       ipcRenderer.invoke('settings:get').then((settings) => {
-        console.log('[HomeLanding] IPC 测试成功，获取到设置:', settings);
       }).catch((error) => {
         console.error('[HomeLanding] IPC 测试失败:', error);
       });
@@ -178,12 +174,10 @@ async function loadIconToCache(item: Shortcut): Promise<string | null> {
   // 优先使用自定义 icon
   if (item.icon) {
     iconUrl = item.icon;
-    console.log(`[图标缓存] 使用自定义图标: ${item.name}`);
   } else if (item.type === 'website' && item.url) {
     // 网站类型自动获取 favicon
     try {
       const url = new URL(item.url);
-      console.log(`[图标缓存] 解析 URL: ${item.url}`);
       //iconUrl = `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=128`;
       iconUrl = `https://favicon.im/${url.hostname}`;
     } catch (error) {
@@ -191,7 +185,6 @@ async function loadIconToCache(item: Shortcut): Promise<string | null> {
       return null;
     }
   }
-  console.log(`[图标缓存] iconUrl:`, iconUrl);
   if (!iconUrl) return null;
   
   // 如果是本地文件路径，直接使用
@@ -202,36 +195,24 @@ async function loadIconToCache(item: Shortcut): Promise<string | null> {
   
   // 尝试从缓存获取
   try {
-    console.log(`[图标缓存] 开始处理: ${item.name}`);
-    console.log(`[图标缓存] ipcRenderer 状态:`, ipcRenderer ? '可用' : '不可用');
-    console.log(`[图标缓存] iconUrl:`, iconUrl);
     
     if (!ipcRenderer) {
-      console.error('[图标缓存] ipcRenderer 为空，无法调用后端接口');
       iconCacheMap.value.set(cacheKey, iconUrl);
       return iconUrl;
     }
     
-    console.log(`[图标缓存] 检查是否已缓存...`);
     const cachedPath = await ipcRenderer.invoke<string>('icon:get-cached', iconUrl);
-    console.log(`[图标缓存] 检查结果:`, cachedPath || '未找到缓存');
     
     if (cachedPath) {
-      console.log(`使用缓存图标: ${item.name}`);
       iconCacheMap.value.set(cacheKey, cachedPath);
       return cachedPath;
     }
     
     // 如果缓存不存在，下载并缓存
-    console.log(`正在缓存图标: ${item.name}`);
-    console.log(`[图标缓存] 调用后端 icon:cache 接口...`);
     
     const result = await ipcRenderer.invoke<string>('icon:cache', iconUrl);
-    console.log(`[图标缓存] 后端返回结果:`, result || 'null/undefined');
     
     if (result) {
-      console.log(`图标已缓存: ${item.name}`);
-      console.log(`[图标缓存] 缓存路径:`, result);
       iconCacheMap.value.set(cacheKey, result);
       return result;
     } else {
@@ -242,8 +223,6 @@ async function loadIconToCache(item: Shortcut): Promise<string | null> {
     console.error(`[图标缓存] 错误详情:`, error instanceof Error ? error.message : error);
   }
   
-  // 如果缓存失败，返回原始 URL
-  console.log(`[图标缓存] 使用原始 URL: ${iconUrl}`);
   iconCacheMap.value.set(cacheKey, iconUrl);
   return iconUrl;
 }
@@ -293,7 +272,6 @@ onMounted(async () => {
   // 异步加载所有图标到缓存
   const loadPromises = props.shortcuts.map(async (item) => {
     // 只处理网站类型的快捷方式
-    console.log(`[图标缓存] 处理快捷方式: ${item.name}`);
     if (item.type === 'website' && item.url) {
       try {
         await loadIconToCache(item);

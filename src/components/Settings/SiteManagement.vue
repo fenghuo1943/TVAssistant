@@ -7,7 +7,7 @@
         class="site-item"
         :class="{ 'is-focused': focusedIndex === index }"
         :ref="(el) => setSiteItemRef(el as HTMLDivElement, index)"
-        :tabindex="focusedIndex === index ? 0 : -1"
+        :tabindex="-1"
       >
         <div class="site-info">
           <span class="site-icon">{{ getSiteIcon(site) }}</span>
@@ -148,6 +148,7 @@ const emit = defineEmits<{
   'open-edit-dialog': [];
   'close-edit-dialog': [];
   'edit-dialog-state-change': [isOpen: boolean];
+  'focus-first-button': [];
 }>();
 
 const availableShortcuts = computed<SiteItem[]>(() => {
@@ -328,11 +329,9 @@ function closeEditDialog() {
   emit('close-edit-dialog');
   emit('edit-dialog-state-change', false);
   
-  // 关闭弹窗后，恢复焦点到网址列表
+  // 关闭弹窗后，通知父组件聚焦到第一个按钮
   nextTick(() => {
-    if (siteItemRefs.value.length > 0) {
-      siteItemRefs.value[0]?.focus();
-    }
+    emit('focus-first-button');
   });
 }
 
