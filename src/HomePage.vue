@@ -42,14 +42,15 @@ const ipcRenderer = ((window as typeof window & { require?: (moduleName: string)
 import { useLiveMenu } from './composables/useLiveMenu.ts';
 const liveMenu = useLiveMenu();
 
-// 使用全局自动隐藏鼠标 Hook - 打开任何网址时都启用
-/* const { 
+const {
   enable: enableAutoHide,
-  disable: disableAutoHide 
+  disable: disableAutoHide,
+  attachWebview,
+  markWebviewReady
 } = useAutoHideMouse({
-  hideDelay: 3000, // 3秒后隐藏
-  immediate: false // 默认不立即启用，在打开网址时启用
-}); */
+  hideDelay: 3000,
+  immediate: false
+});
 
 // 使用引用管理器
 const cardRefManager = createRefManager<HTMLButtonElement>();
@@ -128,6 +129,7 @@ function updateTime() {
 
 function openSettings() {
   appState.showSettings = true;
+  disableAutoHide();
 }
 
 function closeSettings() {
@@ -147,8 +149,7 @@ function openSite(item: Shortcut) {
   pluginState.currentPluginId = '';
   pluginState.currentPluginConfig = {};
 
-  // 打开任何网址时都启用自动隐藏鼠标
-  //enableAutoHide();
+  enableAutoHide();
 
   nextTick(() => {
     backButtonRefManager.ref.value?.focus();
@@ -176,8 +177,7 @@ function goHome() {
   pluginState.currentPluginId = '';
   pluginState.currentPluginConfig = {};
 
-  // 返回主页时禁用自动隐藏鼠标
-  //disableAutoHide();
+  disableAutoHide();
 
   nextTick(() => {
     focusSelectedCard();
@@ -194,6 +194,7 @@ function setBackButtonRef(element: Element | ComponentPublicInstance | null) {
 
 function setWebviewRef(element: Element | ComponentPublicInstance | null) {
   webviewRefManager.setRef(element as Electron.WebviewTag | ComponentPublicInstance);
+  attachWebview((element as Electron.WebviewTag | null) ?? null);
 }
 
 function focusSelectedCard() {
@@ -603,6 +604,7 @@ const debouncedFetchLiveMenu = debounce(fetchLiveMenuData, 500);
 const throttledHandleKeydown = throttle(handleKeydown, 100);
 
 function handleBrowserReady() {
+  markWebviewReady();
   const plugin = activePlugin.value;
   if (!plugin) {
     return;
@@ -819,6 +821,7 @@ onBeforeUnmount(() => {
     window.clearInterval(timer);
   }
 
+  disableAutoHide();
   ipcRenderer?.removeListener('app-keydown', handleForwardedKeydown);
 });
 </script>

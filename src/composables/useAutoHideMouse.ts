@@ -1,19 +1,157 @@
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 export interface UseAutoHideMouseOptions {
-  /** 鼠标静止多少毫秒后隐藏（默认3000ms） */
   hideDelay?: number;
-  /** 是否立即启用 */
   immediate?: boolean;
 }
 
-/**
- * 自动隐藏鼠标 Hook
- * 功能：
- * 1. 鼠标停止移动指定时间后自动隐藏
- * 2. 鼠标移动时自动显示
- * 3. 可动态启用/禁用
- */
+const HOST_CURSOR_STYLE_ID = 'tv-assistant-host-auto-hide-cursor-style';
+const HOST_CURSOR_HIDDEN_CLASS = 'tv-assistant-host-cursor-hidden';
+
+function ensureHostCursorStyle() {
+  if (document.getElementById(HOST_CURSOR_STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement('style');
+  style.id = HOST_CURSOR_STYLE_ID;
+  style.textContent = `
+    .${HOST_CURSOR_HIDDEN_CLASS},
+    .${HOST_CURSOR_HIDDEN_CLASS} * {
+      cursor: none !important;
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function buildWebviewCursorScript(hideDelay: number) {
+  return `
+    (() => {
+      const STYLE_ID = 'tv-assistant-webview-auto-hide-cursor-style';
+      const HIDDEN_CLASS = 'tv-assistant-webview-cursor-hidden';
+
+      if (!document.getElementById(STYLE_ID)) {
+        const style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.textContent = \`
+          .\${HIDDEN_CLASS},
+          .\${HIDDEN_CLASS} * {
+            cursor: none !important;
+          }
+        \`;
+        document.head.appendChild(style);
+      }
+
+      const root = document.documentElement;
+      const state = window.__tvAssistantAutoHideCursor ?? {
+        enabled: false,
+        timer: null,
+        hideDelay: ${hideDelay},
+        lastPointerX: null,
+        lastPointerY: null,
+        onPointerActivity: null,
+        pointerEvents: ['mousemove', 'mousedown', 'mouseup', 'wheel']
+      };
+
+      state.hideDelay = ${hideDelay};
+
+      const showCursor = () => {
+        root.classList.remove(HIDDEN_CLASS);
+      };
+
+      const hideCursor = () => {
+        root.classList.add(HIDDEN_CLASS);
+      };
+
+      const clearTimer = () => {
+        if (state.timer) {
+          clearTimeout(state.timer);
+          state.timer = null;
+        }
+      };
+
+      const resetTimer = () => {
+        if (!state.enabled) {
+          return;
+        }
+
+        showCursor();
+        clearTimer();
+        state.timer = window.setTimeout(() => {
+          hideCursor();
+        }, state.hideDelay);
+      };
+
+      if (!state.onMouseMove) {
+        state.onPointerActivity = (event) => {
+          if (event.type === 'mousemove') {
+            if (state.lastPointerX === event.clientX && state.lastPointerY === event.clientY) {
+              return;
+            }
+
+            state.lastPointerX = event.clientX;
+            state.lastPointerY = event.clientY;
+          }
+
+          resetTimer();
+        };
+      }
+
+      state.enable = () => {
+        if (!state.enabled) {
+          state.pointerEvents.forEach((eventName) => {
+            document.addEventListener(eventName, state.onPointerActivity, { passive: true, capture: true });
+          });
+          state.enabled = true;
+        }
+
+        resetTimer();
+      };
+
+      state.disable = () => {
+        state.enabled = false;
+        state.pointerEvents.forEach((eventName) => {
+          document.removeEventListener(eventName, state.onPointerActivity, true);
+        });
+        clearTimer();
+        state.lastPointerX = null;
+        state.lastPointerY = null;
+        showCursor();
+      };
+
+      window.__tvAssistantAutoHideCursor = state;
+      state.enable();
+      return true;
+    })();
+  `;
+}
+
+function buildDisableWebviewCursorScript() {
+  return `
+    (() => {
+      window.__tvAssistantAutoHideCursor?.disable?.();
+      return true;
+    })();
+  `;
+}
+
+declare global {
+  interface Window {
+    __tvAssistantAutoHideCursor?: {
+      enabled: boolean;
+      timer: number | null;
+      hideDelay: number;
+      lastPointerX?: number | null;
+      lastPointerY?: number | null;
+      onPointerActivity?: ((event: MouseEvent | WheelEvent) => void) | null;
+      pointerEvents?: string[];
+      enable?: () => void;
+      disable?: () => void;
+    };
+  }
+}
+
 export function useAutoHideMouse(options: UseAutoHideMouseOptions = {}) {
   const {
     hideDelay = 3000,
@@ -22,305 +160,164 @@ export function useAutoHideMouse(options: UseAutoHideMouseOptions = {}) {
 
   const isEnabled = ref(immediate);
   const isMouseVisible = ref(true);
+  const webviewRef = ref<Electron.WebviewTag | null>(null);
+  const isWebviewReady = ref(false);
+
   let hideTimer: ReturnType<typeof setTimeout> | null = null;
-  let isInitialized = false;
-  let cssInsertionId: string | null = null;
-  let webviewHandlerInjected = false;
+  let isMounted = false;
 
-  /**
-   * 获取 webview 元素
-   */
-  const getWebview = (): Electron.WebviewTag | null => {
-    const webview = document.querySelector('webview') as Electron.WebviewTag | null;
-    console.log('[AutoHideMouse] 尝试获取 webview 元素:', webview);
-    return webview;
-  };
+  function applyHostCursorVisibility(visible: boolean) {
+    document.documentElement.classList.toggle(HOST_CURSOR_HIDDEN_CLASS, !visible);
+  }
 
-  /**
-   * 等待 webview 元素就绪
-   */
-  const waitForWebview = (maxRetries = 10, interval = 500): Promise<Electron.WebviewTag | null> => {
-    return new Promise((resolve) => {
-      let retries = 0;
-      
-      const check = () => {
-        const webview = getWebview();
-        if (webview) {
-          console.log('[AutoHideMouse] webview 元素已就绪');
-          resolve(webview);
-        } else if (retries < maxRetries) {
-          retries++;
-          console.log(`[AutoHideMouse] webview 未就绪，第 ${retries} 次重试...`);
-          setTimeout(check, interval);
-        } else {
-          console.warn('[AutoHideMouse] 超过最大重试次数，webview 仍未就绪');
-          resolve(null);
-        }
-      };
-      
-      check();
-    });
-  };
-
-  /**
-   * 在 webview 中注入完整的鼠标自动隐藏逻辑
-   */
-  const injectWebviewAutoHideHandler = async () => {
-    if (webviewHandlerInjected) {
-      console.log('[AutoHideMouse] 处理器已注入，跳过');
-      return;
-    }
-
-    console.log('[AutoHideMouse] 开始注入 webview 自动隐藏处理器');
-    
-    // 等待 webview 元素就绪
-    const webview = await waitForWebview();
-    if (!webview) {
-      console.error('[AutoHideMouse] 无法获取 webview 元素，注入失败');
-      return;
-    }
-
-    console.log('[AutoHideMouse] 在 webview 中注入自动隐藏处理器');
-    
-    // 在 webview 内部注入完整的 JavaScript 逻辑
-    webview.executeJavaScript(`
-      (function() {
-        // 创建隐藏鼠标的样式
-        const style = document.createElement('style');
-        console.log('[WebView] 创建隐藏鼠标的样式');
-        style.id = 'tv-assistant-auto-hide-cursor';
-        style.textContent = \`
-          .tv-assistant-cursor-hidden {
-            cursor: none !important;
-          }
-          .tv-assistant-cursor-hidden * {
-            cursor: none !important;
-          }
-        \`;
-        document.head.appendChild(style);
-        
-        let hideTimer = null;
-        let isHidden = false;
-        const HIDE_DELAY = 3000; // 3秒后隐藏
-        
-        // 显示鼠标
-        function showCursor() {
-          if (isHidden) {
-            document.body.classList.remove('tv-assistant-cursor-hidden');
-            isHidden = false;
-            console.log('[WebView] 鼠标已显示');
-          }
-        }
-        
-        // 隐藏鼠标
-        function hideCursor() {
-          if (!isHidden) {
-            document.body.classList.add('tv-assistant-cursor-hidden');
-            isHidden = true;
-            console.log('[WebView] 鼠标已隐藏');
-          }
-        }
-        
-        // 重置计时器
-        function resetTimer() {
-          showCursor();
-          
-          if (hideTimer) {
-            clearTimeout(hideTimer);
-          }
-          
-          hideTimer = setTimeout(() => {
-            hideCursor();
-          }, HIDE_DELAY);
-        }
-        
-        // 监听鼠标移动
-        document.addEventListener('mousemove', function() {
-          resetTimer();
-        });
-        
-        // 立即启动计时器
-        resetTimer();
-        
-        console.log('[WebView] 自动隐藏处理器已注入');
-      })();
-    `).then(() => {
-      webviewHandlerInjected = true;
-      console.log('[AutoHideMouse] webview 自动隐藏处理器注入成功');
-    }).catch((err) => {
-      console.error('[AutoHideMouse] webview 自动隐藏处理器注入失败:', err);
-    });
-  };
-
-  /**
-   * 显示鼠标
-   */
-  const showMouse = () => {
-    if (!isMouseVisible.value) {
-      console.log('[AutoHideMouse] 显示鼠标');
-      isMouseVisible.value = true;
-    }
-  };
-
-  /**
-   * 隐藏鼠标
-   */
-  const hideMouse = () => {
-    if (isMouseVisible.value && isEnabled.value) {
-      console.log('[AutoHideMouse] 隐藏鼠标');
-      isMouseVisible.value = false;
-    }
-  };
-
-  /**
-   * 重置隐藏计时器
-   */
-  const resetHideTimer = () => {
-    console.log('[AutoHideMouse] 重置计时器, isEnabled:', isEnabled.value);
-    
-    // 先显示鼠标
-    showMouse();
-
-    // 清除旧计时器
-    if (hideTimer !== null) {
-      console.log('[AutoHideMouse] 清除旧计时器');
-      clearTimeout(hideTimer);
-    }
-
-    // 设置新计时器
-    if (isEnabled.value) {
-      console.log(`[AutoHideMouse] 设置新计时器, ${hideDelay}ms 后隐藏`);
-      hideTimer = setTimeout(() => {
-        console.log('[AutoHideMouse] 计时器触发，准备隐藏鼠标');
-        hideMouse();
-      }, hideDelay);
-    } else {
-      console.log('[AutoHideMouse] 未启用，不设置计时器');
-    }
-  };
-
-  /**
-   * 鼠标移动处理函数
-   */
-  const handleMouseMove = () => {
-    if (isEnabled.value) {
-      console.log('[AutoHideMouse] 检测到鼠标移动');
-      resetHideTimer();
-    }
-  };
-
-  /**
-   * 启用自动隐藏
-   */
-  const enable = () => {
-    console.log('[AutoHideMouse] 调用 enable(), 当前状态:', isEnabled.value);
-    if (!isEnabled.value) {
-      isEnabled.value = true;
-    } else {
-      // 如果已经启用，重置计时器
-      console.log('[AutoHideMouse] 已启用，重置计时器');
-      resetHideTimer();
-    }
-  };
-
-  /**
-   * 禁用自动隐藏
-   */
-  const disable = () => {
-    console.log('[AutoHideMouse] 调用 disable()');
-    isEnabled.value = false;
-    if (hideTimer !== null) {
-      console.log('[AutoHideMouse] 清除计时器');
+  function clearHideTimer() {
+    if (hideTimer) {
       clearTimeout(hideTimer);
       hideTimer = null;
     }
-    showMouse();
-  };
+  }
 
-  /**
-   * 切换启用状态
-   */
-  const toggle = () => {
-    if (isEnabled.value) {
-      disable();
-    } else {
-      enable();
-    }
-  };
+  function showMouse() {
+    isMouseVisible.value = true;
+    applyHostCursorVisibility(true);
+  }
 
-  // 组件挂载时初始化
-  onMounted(() => {
-    console.log('[AutoHideMouse] 组件挂载, isEnabled:', isEnabled.value);
-    isInitialized = true;
-    
-    if (isEnabled.value) {
-      console.log('[AutoHideMouse] 添加鼠标移动事件监听器');
-      document.addEventListener('mousemove', handleMouseMove);
-      
-      // 在 webview 中注入自动隐藏处理器
-      injectWebviewAutoHideHandler();
-      
-      resetHideTimer();
-    }
-  });
-
-  // 监听启用状态变化
-  watch(isEnabled, (newValue) => {
-    console.log('[AutoHideMouse] watch 触发, newValue:', newValue, ', isInitialized:', isInitialized);
-    
-    // 如果还没初始化完成，不执行
-    if (!isInitialized) {
-      console.log('[AutoHideMouse] 尚未初始化，跳过');
+  function hideMouse() {
+    if (!isEnabled.value) {
       return;
     }
 
-    if (newValue) {
-      console.log('[AutoHideMouse] 启用状态，添加事件监听器');
-      document.addEventListener('mousemove', handleMouseMove);
-      
-      // 在 webview 中注入自动隐藏处理器
-      injectWebviewAutoHideHandler();
-      
-      resetHideTimer();
-    } else {
-      console.log('[AutoHideMouse] 禁用状态，移除事件监听器');
-      document.removeEventListener('mousemove', handleMouseMove);
-      if (hideTimer !== null) {
-        console.log('[AutoHideMouse] 清除计时器');
-        clearTimeout(hideTimer);
-        hideTimer = null;
+    isMouseVisible.value = false;
+    applyHostCursorVisibility(false);
+  }
+
+  async function syncWebviewCursor(enabled: boolean) {
+    const webview = webviewRef.value;
+    if (!webview || !isWebviewReady.value) {
+      return;
+    }
+
+    try {
+      if (enabled) {
+        await webview.executeJavaScript(buildWebviewCursorScript(hideDelay), true);
+      } else {
+        await webview.executeJavaScript(buildDisableWebviewCursorScript(), true);
       }
+    } catch (error) {
+      console.error('[AutoHideMouse] webview cursor sync failed:', error);
+    }
+  }
+
+  function resetHideTimer() {
+    if (!isEnabled.value) {
+      return;
+    }
+
+    showMouse();
+    clearHideTimer();
+    hideTimer = setTimeout(() => {
+      hideMouse();
+    }, hideDelay);
+  }
+
+  function handleMouseMove() {
+    resetHideTimer();
+  }
+
+  function enable() {
+    if (isEnabled.value) {
+      resetHideTimer();
+      void syncWebviewCursor(true);
+      return;
+    }
+
+    isEnabled.value = true;
+  }
+
+  function disable() {
+    if (!isEnabled.value) {
       showMouse();
+      void syncWebviewCursor(false);
+      return;
+    }
+
+    isEnabled.value = false;
+  }
+
+  function toggle() {
+    if (isEnabled.value) {
+      disable();
+      return;
+    }
+
+    enable();
+  }
+
+  function attachWebview(webview: Electron.WebviewTag | null) {
+    webviewRef.value = webview;
+    isWebviewReady.value = false;
+
+    if (!webview) {
+      return;
+    }
+  }
+
+  function markWebviewReady() {
+    isWebviewReady.value = true;
+
+    if (isEnabled.value) {
+      void syncWebviewCursor(true);
+    } else {
+      void syncWebviewCursor(false);
+    }
+  }
+
+  onMounted(() => {
+    isMounted = true;
+    ensureHostCursorStyle();
+    applyHostCursorVisibility(true);
+
+    if (isEnabled.value) {
+      document.addEventListener('mousemove', handleMouseMove, { passive: true });
+      resetHideTimer();
     }
   });
 
-  // 组件卸载时清理
-  onBeforeUnmount(() => {
-    console.log('[AutoHideMouse] 组件卸载，清理资源');
-    document.removeEventListener('mousemove', handleMouseMove);
-    
-    if (hideTimer !== null) {
-      console.log('[AutoHideMouse] 清除计时器');
-      clearTimeout(hideTimer);
+  watch(isEnabled, (enabled) => {
+    if (!isMounted) {
+      return;
     }
-    
+
+    if (enabled) {
+      document.addEventListener('mousemove', handleMouseMove, { passive: true });
+      resetHideTimer();
+      void syncWebviewCursor(true);
+      return;
+    }
+
+    document.removeEventListener('mousemove', handleMouseMove);
+    clearHideTimer();
     showMouse();
+    void syncWebviewCursor(false);
+  });
+
+  onBeforeUnmount(() => {
+    document.removeEventListener('mousemove', handleMouseMove);
+    clearHideTimer();
+    showMouse();
+    void syncWebviewCursor(false);
   });
 
   return {
-    /** 是否启用自动隐藏 */
     isEnabled,
-    /** 鼠标是否可见 */
     isMouseVisible,
-    /** 启用自动隐藏 */
     enable,
-    /** 禁用自动隐藏 */
     disable,
-    /** 切换启用状态 */
     toggle,
-    /** 手动显示鼠标 */
     showMouse,
-    /** 手动隐藏鼠标 */
-    hideMouse
+    hideMouse,
+    resetHideTimer,
+    attachWebview,
+    markWebviewReady
   };
 }
