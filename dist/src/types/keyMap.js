@@ -11,7 +11,7 @@ export var StandardKey;
     /** 返回键 (Escape) */
     StandardKey["BACK"] = "Escape";
     /** 菜单键 (m) */
-    StandardKey["MENU"] = "m";
+    StandardKey["MENU"] = "Alt";
     /** 确定键 (Space) - 用于确认、播放/暂停 */
     StandardKey["CONFIRM"] = " ";
     /** 上方向键 */

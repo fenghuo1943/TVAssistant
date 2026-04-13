@@ -11,7 +11,7 @@ export enum StandardKey {
   /** 返回键 (Escape) */
   BACK = 'Escape',
   /** 菜单键 (m) */
-  MENU = 'm',
+  MENU = 'Alt',
   /** 确定键 (Space) - 用于确认、播放/暂停 */
   CONFIRM = ' ',
   /** 上方向键 */

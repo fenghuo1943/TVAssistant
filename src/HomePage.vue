@@ -33,6 +33,7 @@ import { createRefManager, createSingleRefManager } from './utils/refManager.ts'
 import { defaultSettings, type AppSettings, type Shortcut } from './settings.ts';
 import { DEFAULT_SHORTCUTS } from './constants/index.ts';
 import { StandardKey, isVolumeKey } from './types/keyMap.js';
+import { useAutoHideMouse } from './composables/useAutoHideMouse.ts';
 
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
   .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
@@ -40,6 +41,15 @@ const ipcRenderer = ((window as typeof window & { require?: (moduleName: string)
 // 使用 useLiveMenu composable 管理直播菜单状态
 import { useLiveMenu } from './composables/useLiveMenu.ts';
 const liveMenu = useLiveMenu();
+
+// 使用全局自动隐藏鼠标 Hook - 打开任何网址时都启用
+/* const { 
+  enable: enableAutoHide,
+  disable: disableAutoHide 
+} = useAutoHideMouse({
+  hideDelay: 3000, // 3秒后隐藏
+  immediate: false // 默认不立即启用，在打开网址时启用
+}); */
 
 // 使用引用管理器
 const cardRefManager = createRefManager<HTMLButtonElement>();
@@ -137,6 +147,9 @@ function openSite(item: Shortcut) {
   pluginState.currentPluginId = '';
   pluginState.currentPluginConfig = {};
 
+  // 打开任何网址时都启用自动隐藏鼠标
+  //enableAutoHide();
+
   nextTick(() => {
     backButtonRefManager.ref.value?.focus();
   });
@@ -162,6 +175,9 @@ function goHome() {
   liveMenu.currentChannel.value = '';
   pluginState.currentPluginId = '';
   pluginState.currentPluginConfig = {};
+
+  // 返回主页时禁用自动隐藏鼠标
+  //disableAutoHide();
 
   nextTick(() => {
     focusSelectedCard();
@@ -607,13 +623,14 @@ function handleSettingsKeydown(event: KeyboardEvent) {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  //console.log('[HomePage] 按键事件:', event.key);
+  console.log('[HomePage] 按键事件:', event.key);
   if (appState.showSettings && !appState.activeUrl) {
     // 其他按键事件不拦截，让它们自然传递给 SettingsPanel
     return;
   }
 
   if (appState.activeUrl) {
+    console.log('[HomePage] 当前活动 URL:', appState.activeUrl);
     if (liveMenu.state.visible) {
       if (event.key === StandardKey.BACK) {
         event.preventDefault();
@@ -658,6 +675,7 @@ function handleKeydown(event: KeyboardEvent) {
 
     if (isLiveMenuAvailable.value && event.key === StandardKey.MENU) {
       event.preventDefault();
+      console.log('[HomePage] 菜单键，切换直播菜单');
       toggleLiveMenu();
       return;
     }
