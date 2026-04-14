@@ -35,6 +35,7 @@ import { DEFAULT_SHORTCUTS } from './constants/index.ts';
 import { StandardKey, isVolumeKey } from './types/keyMap.js';
 import { useAutoHideMouse } from './composables/useAutoHideMouse.ts';
 
+// 获取 Electron IPC Renderer
 const ipcRenderer = ((window as typeof window & { require?: (moduleName: string) => { ipcRenderer?: IpcRenderer } })
   .require?.('electron')?.ipcRenderer ?? null) as IpcRenderer | null;
 

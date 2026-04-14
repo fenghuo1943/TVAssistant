@@ -146,7 +146,7 @@ declare global {
       enable?: () => void;
       disable?: () => void;
     };
-    require?: (moduleName: string) => unknown;
+    require?: (moduleName: string) => any;
   }
 }
 
