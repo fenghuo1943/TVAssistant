@@ -14,7 +14,7 @@
       :set-webview-ref="setWebviewRef" :show-live-menu="liveMenu.state.visible"
       :live-menu-groups="liveMenu.state.groups" :active-live-group-index="liveMenu.state.groupIndex"
       :active-live-column="liveMenu.state.column" :active-live-item-index="liveMenu.currentItemIndex.value"
-      :live-menu-heading="liveMenu.heading.value" @browser-ready="handleBrowserReady" @go-home="goHome"
+      :live-menu-heading="liveMenu.heading.value" :is-mouse-visible="isMouseVisible" @browser-ready="handleBrowserReady" @go-home="goHome"
       @select-live-channel="selectLiveChannel" />
   </main>
 </template>
@@ -46,7 +46,8 @@ const {
   enable: enableAutoHide,
   disable: disableAutoHide,
   attachWebview,
-  markWebviewReady
+  markWebviewReady,
+  isMouseVisible
 } = useAutoHideMouse({
   hideDelay: 3000,
   immediate: false
@@ -152,7 +153,13 @@ function openSite(item: Shortcut) {
   enableAutoHide();
 
   nextTick(() => {
-    backButtonRefManager.ref.value?.focus();
+    const webview = webviewRefManager.ref.value;
+    if (webview) {
+      webview.focus();
+    } else {
+      // 如果 WebView 还未准备好，则聚焦到返回按钮作为备选
+      backButtonRefManager.ref.value?.focus();
+    }
   });
 }
 

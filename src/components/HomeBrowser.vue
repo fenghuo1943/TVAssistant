@@ -61,6 +61,7 @@
       </div>
 
       <button
+        v-show="isMouseVisible"
         :ref="setBackButtonRef"
         type="button"
         class="back-home-button"
@@ -89,6 +90,7 @@ defineProps<{
   activeLiveColumn: 'group' | 'item';
   activeLiveItemIndex: number;
   liveMenuHeading: string;
+  isMouseVisible: boolean;
 }>();
 
 defineEmits<{
@@ -265,6 +267,8 @@ defineEmits<{
   transition: transform 0.2s ease, filter 0.2s ease, border-color 0.2s ease;
   z-index: 2;
 }
+
+
 
 .back-home-button:hover,
 .back-home-button:focus-visible {

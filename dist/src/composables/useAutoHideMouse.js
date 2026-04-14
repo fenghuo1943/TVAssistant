@@ -41,29 +41,57 @@ function buildWebviewCursorScript(hideDelay) {
 
       state.hideDelay = ${hideDelay};
 
+      let hideTimer = null;
+
+      function clearHideTimer() {
+        if (hideTimer) {
+          clearTimeout(hideTimer);
+          hideTimer = null;
+        }
+      }
+
+      function showCursor() {
+        root.classList.remove(HIDDEN_CLASS);
+        clearHideTimer();
+        hideTimer = setTimeout(() => {
+          if (state.enabled) {
+            root.classList.add(HIDDEN_CLASS);
+          }
+        }, state.hideDelay);
+      }
+
       state.enable = () => {
         state.enabled = true;
         root.classList.remove(HIDDEN_CLASS);
+        showCursor();
       };
 
       state.disable = () => {
         state.enabled = false;
         root.classList.remove(HIDDEN_CLASS);
+        clearHideTimer();
       };
 
       state.show = () => {
-        root.classList.remove(HIDDEN_CLASS);
+        showCursor();
       };
 
       state.hide = () => {
         if (!state.enabled) {
           return;
         }
-
+        clearHideTimer();
         root.classList.add(HIDDEN_CLASS);
       };
 
       window.__tvAssistantAutoHideCursor = state;
+      
+      document.addEventListener('mousemove', () => {
+        if (state.enabled) {
+          showCursor();
+        }
+      }, { passive: true });
+
       state.enable();
       return true;
     })();

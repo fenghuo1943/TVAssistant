@@ -221,11 +221,55 @@
     }, 1200);
   }
 
+  function isEssentialElement(element) {
+    // 判断是否是必要元素（如遮罩层、音量指示器等）
+    return element.id === OVERLAY_ID || element === state.volumeIndicator;
+  }
+
+  function hideUnrelatedElements(container, video) {
+    // 查找并隐藏容器内所有与视频无关的UI元素
+    const selectorsToHide = [
+      '.header',
+      '.header-b',
+      '.header-b-l',
+      '.header-b-m',
+      '.header-b-r',
+      'nav',
+      'aside',
+      'footer',
+      '[class*="header"]'
+    ];
+
+    selectorsToHide.forEach(selector => {
+      const elements = container.querySelectorAll(selector);
+      elements.forEach(el => {
+        // 确保不隐藏包含视频的祖先元素
+        if (!el.contains(video) && !isEssentialElement(el)) {
+          el.style.setProperty('display', 'none', 'important');
+        }
+      });
+    });
+  }
+
   function applyFullscreen(video) {
     if (!(video instanceof HTMLVideoElement)) {
       return false;
     }
 
+    // 查找并点击全屏按钮
+     /* const fullscreenButton = document.querySelector('div[data-v-03d5f916].full.full2');
+    if (fullscreenButton) {
+      // 模拟点击事件
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      fullscreenButton.dispatchEvent(clickEvent);
+      return true;
+    } */
+
+    // 如果找不到指定的全屏按钮，回退到原来的CSS全屏方案
     for (const child of document.body.children) {
       if (child.id === OVERLAY_ID || child === state.volumeIndicator) {
         continue;
@@ -233,6 +277,8 @@
 
       if (child.contains(video)) {
         child.classList.remove(HIDDEN_CLASS);
+        // 新增：在包含视频的容器中，隐藏与视频无关的子元素
+        hideUnrelatedElements(child, video);
         continue;
       }
 
@@ -269,7 +315,7 @@
     video.style.setProperty('width', '100vw', 'important');
     video.style.setProperty('height', '100vh', 'important');
     video.style.setProperty('object-fit', 'cover', 'important');
-    video.style.setProperty('z-index', '2147483644', 'important');
+    video.style.setProperty('z-index', '2147483644', 'important'); 
 
     return true;
   }
@@ -321,13 +367,13 @@
     video.addEventListener('stalled', showLoading);
     video.addEventListener('playing', hideLoading);
     video.addEventListener('canplay', hideLoading);
-    video.addEventListener('play', hideLoading);
+    video.addEventListener('play', hideLoading); 
   }
 
   function ensureVideoWatcher() {
     if (state.videoObserver) {
       return;
-    }
+    } 
 
     state.videoObserver = new MutationObserver(() => {
       const video = document.querySelector('video');
@@ -530,7 +576,7 @@
   }
 
   function init(config = {}) {
-    if (typeof config === 'object' && config) {
+     if (typeof config === 'object' && config) {
       state.config.volume = clampVolume(config.volume ?? state.config.volume);
     }
 
@@ -547,7 +593,7 @@
       }
     } else {
       showOverlay(extractCurrentChannelName());
-    }
+    } 
 
     state.initialized = true;
     return true;
