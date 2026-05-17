@@ -51,6 +51,8 @@ export class MouseController {
   private pendingDX = 0;
   private pendingDY = 0;
   private useVirtualDriver = false;
+  private accumulatedX = 0;
+  private accumulatedY = 0;
 
   constructor() {
     this.startMouseLoop();
@@ -59,7 +61,7 @@ export class MouseController {
       const opened = driverModule.openDevice();
       console.log('虚拟鼠标设备打开结果:', opened);
       if (opened) {
-        //this.useVirtualDriver = true;
+        this.useVirtualDriver = true;
         console.log('虚拟鼠标设备已打开');
       } else {
         console.warn('虚拟鼠标设备打开失败，回退到 robotjs');
@@ -149,21 +151,32 @@ export class MouseController {
       if (this.pendingDX === 0 && this.pendingDY === 0) return;
 
       const pos = robot.getMousePos();
-      this.smoothX = this.smoothX * 0.5 + this.pendingDX * 0.5;
-      this.smoothY = this.smoothY * 0.5 + this.pendingDY * 0.5;
-
+      
       if (this.useVirtualDriver && driverModule) {
-      // 使用虚拟鼠标驱动
-      driverModule.moveMouse(Math.round(this.smoothX),
-        Math.round(this.smoothY));
-    } else {
-      robot.moveMouse(
-        pos.x + Math.round(this.smoothX),
-        pos.y + Math.round(this.smoothY)
-      );
-      
-    }
-      
+        // 虚拟驱动：累积增量，避免精度丢失
+        this.accumulatedX += this.pendingDX;
+        this.accumulatedY += this.pendingDY;
+        
+        const moveX = Math.round(this.accumulatedX);
+        const moveY = Math.round(this.accumulatedY);
+        
+        if (moveX !== 0 || moveY !== 0) {
+          //console.log(`Virtual Driver: moveX=${moveX}, moveY=${moveY}, pendingDX=${this.pendingDX}, pendingDY=${this.pendingDY}`);
+          driverModule.moveMouse(moveX, moveY);
+          // 减去已移动的部分，保留小数累积
+          this.accumulatedX -= moveX;
+          this.accumulatedY -= moveY;
+        }
+      } else {
+        // robotjs：使用指数平滑算法
+        this.smoothX = this.smoothX * 0.5 + this.pendingDX * 0.5;
+        this.smoothY = this.smoothY * 0.5 + this.pendingDY * 0.5;
+        
+        robot.moveMouse(
+          pos.x + Math.round(this.smoothX),
+          pos.y + Math.round(this.smoothY)
+        );
+      }
 
       this.pendingDX = 0;
       this.pendingDY = 0;

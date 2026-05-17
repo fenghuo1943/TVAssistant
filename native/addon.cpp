@@ -1,4 +1,4 @@
-#include <napi.h>
+﻿#include <napi.h>
 #include <windows.h>
 
 #define IOCTL_MOUSE_MOVE CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
@@ -61,15 +61,15 @@ Napi::Value MoveMouse(const Napi::CallbackInfo& info) {
 
     int dx = info[0].As<Napi::Number>().Int32Value();
     int dy = info[1].As<Napi::Number>().Int32Value();
-
-    printf("Addon: moveMouse %d %d\n", dx, dy);  
-
-    MOUSE_MOVE_DATA pkt = {0};
-    pkt.dx = dx;
-    pkt.dy = dy;
-
+    //printf("Addon: moveMouse called %d %d\n", dx, dy);
+    //printf("Addon: moveMouse input dx=%d, dy=%d\n", dx, dy);  
+    MOUSE_MOVE_DATA pkt;
+    memset(&pkt, 0, sizeof(pkt));
+    pkt.dx = static_cast<CHAR>(dx);
+    pkt.dy = static_cast<CHAR>(dy);
+    
     DWORD ret = 0;
-    BOOL ok = DeviceIoControl(
+    DeviceIoControl(
         hDevice,
         IOCTL_MOUSE_MOVE,
         &pkt,
@@ -79,8 +79,6 @@ Napi::Value MoveMouse(const Napi::CallbackInfo& info) {
         &ret,
         NULL
     );
-
-    //printf("DeviceIoControl result: %d, err=%d\n", ok, GetLastError()); 
 
     return env.Null();
 }
@@ -140,16 +138,21 @@ Napi::Value KeyboardMulti(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     int modifier = info[0].As<Napi::Number>().Int32Value();
     int keyCount = info[1].As<Napi::Number>().Int32Value();
-    int keys[6] = {0};
+    
+    // 限制 keyCount 最大为 6，避免缓冲区溢出
+    if (keyCount > 6) keyCount = 6;
+    if (keyCount < 0) keyCount = 0;
+    
+    UCHAR keys[6] = {0};
     for (int i = 0; i < keyCount; i++) {
-        keys[i] = info[2 + i].As<Napi::Number>().Int32Value();
+        keys[i] = static_cast<UCHAR>(info[2 + i].As<Napi::Number>().Int32Value());
     }
 
     printf("Addon: keyboardMulti %d %d %d\n", modifier, keyCount, keys[0]);  
 
     KEYBOARD_MULTI_DATA pkt = {0};
-    pkt.modifier = modifier;
-    pkt.keyCount = keyCount;
+    pkt.modifier = static_cast<UCHAR>(modifier);
+    pkt.keyCount = static_cast<UCHAR>(keyCount);
     memcpy(pkt.keys, keys, sizeof(keys));
 
     DWORD ret = 0;
