@@ -23,11 +23,11 @@ export class DiscoveryService {
             } catch { }
 
             if (isDiscover) {
-                const ip = this.getLocalIP();
+                const ips = this.getAllLocalIPs();
                 const deviceName = os.hostname();
                 const response = JSON.stringify({
                     type: 'discover_response',
-                    ip,
+                    ips,
                     name: deviceName,
                     os: 'windows'
                 });
@@ -48,15 +48,21 @@ export class DiscoveryService {
         this.udp.close();
     }
 
-    private getLocalIP(): string {
+    private getAllLocalIPs(): string[] {
         const interfaces = os.networkInterfaces();
+        const ips: string[] = [];
+        
         for (const name in interfaces) {
             const iface = interfaces[name];
             if (!iface) continue;
+            
             for (const i of iface) {
-                if (i.family === 'IPv4' && !i.internal) return i.address;
+                if (i.family === 'IPv4' && !i.internal) {
+                    ips.push(i.address);
+                }
             }
         }
-        return '未知';
+        
+        return ips.length > 0 ? ips : ['未知'];
     }
 }
