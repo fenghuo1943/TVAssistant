@@ -152,6 +152,9 @@ export class MouseController {
                 this.accumulatedY += this.pendingDY;
                 const moveX = Math.round(this.accumulatedX);
                 const moveY = Math.round(this.accumulatedY);
+                this.smoothX = this.smoothX * 0.5 + this.pendingDX * 0.5;
+                this.smoothY = this.smoothY * 0.5 + this.pendingDY * 0.5;
+                console.log(`Virtual Driver: smoothX=${this.smoothX}, smoothY=${this.smoothY}, moveX=${moveX}, moveY=${moveY}, pendingDX=${this.pendingDX}, pendingDY=${this.pendingDY}`);
                 if (moveX !== 0 || moveY !== 0) {
                     //console.log(`Virtual Driver: moveX=${moveX}, moveY=${moveY}, pendingDX=${this.pendingDX}, pendingDY=${this.pendingDY}`);
                     driverModule.moveMouse(moveX, moveY);

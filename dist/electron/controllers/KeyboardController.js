@@ -1,13 +1,85 @@
 import robot from "robotjs";
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+import fs from 'fs';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+function findNativeModulePath() {
+    const possiblePaths = [
+        path.resolve(__dirname, '../../../native/build/Release/driver.node'),
+        path.resolve(__dirname, '../../../../native/build/Release/driver.node'),
+        path.resolve(process.cwd(), 'native/build/Release/driver.node'),
+    ];
+    for (const modulePath of possiblePaths) {
+        if (fs.existsSync(modulePath)) {
+            console.log('找到键盘原生模块:', modulePath);
+            return modulePath;
+        }
+    }
+    console.warn('未找到键盘原生模块，尝试的路径:');
+    possiblePaths.forEach(p => console.warn('  -', p));
+    return null;
+}
+let driverModule = null;
+try {
+    const modulePath = findNativeModulePath();
+    if (modulePath) {
+        driverModule = require(modulePath);
+        console.log('虚拟键盘驱动模块加载成功');
+    }
+    else {
+        console.warn('未找到虚拟键盘驱动模块，将使用 robotjs');
+    }
+}
+catch (error) {
+    console.warn('虚拟键盘驱动模块加载失败，将使用 robotjs:', error);
+}
 export class KeyboardController {
+    constructor() {
+        this.useVirtualDriver = false;
+        if (driverModule) {
+            const opened = driverModule.openDevice();
+            console.log('虚拟键盘设备打开结果:', opened);
+            if (opened) {
+                this.useVirtualDriver = true;
+                console.log('虚拟键盘设备已打开');
+            }
+            else {
+                console.warn('虚拟键盘设备打开失败，回退到 robotjs');
+            }
+        }
+    }
     keyDown(vk, modifier) {
-        robot.keyToggle(this.vkToRobot(vk), "down", this.mapModifier(modifier));
+        if (this.useVirtualDriver && driverModule) {
+            const scanCode = this.vkToScanCode(vk);
+            driverModule.keyboardMulti(modifier, 1, scanCode);
+        }
+        else {
+            robot.keyToggle(this.vkToRobot(vk), "down", this.mapModifier(modifier));
+        }
     }
     keyUp(vk, modifier) {
-        robot.keyToggle(this.vkToRobot(vk), "up", this.mapModifier(modifier));
+        if (this.useVirtualDriver && driverModule) {
+            const scanCode = this.vkToScanCode(vk);
+            driverModule.keyboardMulti(modifier, 0, scanCode);
+        }
+        else {
+            robot.keyToggle(this.vkToRobot(vk), "up", this.mapModifier(modifier));
+        }
     }
     comboKey(vk, modifier) {
-        robot.keyTap(this.vkToRobot(vk), this.mapModifier(modifier));
+        if (this.useVirtualDriver && driverModule) {
+            const scanCode = this.vkToScanCode(vk);
+            driverModule.keyboardMulti(modifier, 1, scanCode);
+            setTimeout(() => {
+                driverModule.keyboardMulti(modifier, 0, scanCode);
+            }, 50);
+        }
+        else {
+            robot.keyTap(this.vkToRobot(vk), this.mapModifier(modifier));
+        }
     }
     textInput(text) {
         robot.typeString(text);
@@ -132,5 +204,96 @@ export class KeyboardController {
             return mediaKeyMap[vk];
         }
         return "unknown";
+    }
+    vkToScanCode(vk) {
+        // 使用 USB HID Usage ID 映射
+        const vkToHidMap = {
+            // 功能键
+            27: 0x29, // Escape
+            112: 0x3A, 113: 0x3B, 114: 0x3C, 115: 0x3D,
+            116: 0x3E, 117: 0x3F, 118: 0x40, 119: 0x41,
+            120: 0x42, 121: 0x43, 122: 0x44, 123: 0x45,
+            // 数字键（主键盘）
+            48: 0x27, 49: 0x1E, 50: 0x1F, 51: 0x20, 52: 0x21,
+            53: 0x22, 54: 0x23, 55: 0x24, 56: 0x25, 57: 0x26,
+            // 字母键 A-Z
+            65: 0x04, 66: 0x05, 67: 0x06, 68: 0x07,
+            69: 0x08, 70: 0x09, 71: 0x0A, 72: 0x0B,
+            73: 0x0C, 74: 0x0D, 75: 0x0E, 76: 0x0F,
+            77: 0x10, 78: 0x11, 79: 0x12, 80: 0x13,
+            81: 0x14, 82: 0x15, 83: 0x16, 84: 0x17,
+            85: 0x18, 86: 0x19, 87: 0x1A, 88: 0x1B,
+            89: 0x1C, 90: 0x1D,
+            // 控制键
+            13: 0x28, // Enter
+            8: 0x2A, // Backspace
+            9: 0x2B, // Tab
+            32: 0x2C, // Space
+            20: 0x39, // Caps Lock
+            // 修饰键
+            16: 0xE1, // Left Shift
+            17: 0xE0, // Left Control
+            18: 0xE2, // Left Alt
+            // 符号键
+            189: 0x2D, // -
+            187: 0x2E, // =
+            219: 0x2F, // [
+            221: 0x30, // ]
+            220: 0x31, // \
+            186: 0x33, // ;
+            222: 0x34, // '
+            192: 0x35, // `
+            188: 0x36, // ,
+            190: 0x37, // .
+            191: 0x38, // /
+            // 导航键
+            38: 0x52, // Up
+            40: 0x51, // Down
+            37: 0x50, // Left
+            39: 0x4F, // Right
+            36: 0x4A, // Home
+            35: 0x4D, // End
+            33: 0x4B, // Page Up
+            34: 0x4E, // Page Down
+            45: 0x49, // Insert
+            46: 0x4C, // Delete
+            // 数字键盘
+            144: 0x53, // Num Lock
+            111: 0x54, // Numpad /
+            106: 0x55, // Numpad *
+            109: 0x56, // Numpad -
+            107: 0x57, // Numpad +
+            108: 0x58, // Numpad Enter
+            96: 0x62, 97: 0x59, 98: 0x5A, 99: 0x5B,
+            100: 0x5C, 101: 0x5D, 102: 0x5E, 103: 0x5F,
+            104: 0x60, 105: 0x61,
+            110: 0x63, // Numpad .
+        };
+        return vkToHidMap[vk] || 0;
+    }
+    charToVk(char) {
+        const upperChar = char.toUpperCase();
+        if (upperChar.length === 1 && upperChar >= 'A' && upperChar <= 'Z') {
+            return upperChar.charCodeAt(0);
+        }
+        const charToVkMap = {
+            '0': 48, '1': 49, '2': 50, '3': 51, '4': 52,
+            '5': 53, '6': 54, '7': 55, '8': 56, '9': 57,
+            ' ': 32, '\t': 9, '\n': 13, '\r': 13,
+            ';': 186, '=': 187, ',': 188, '-': 189, '.': 190,
+            '/': 191, '`': 192, '[': 219, '\\': 220, ']': 221,
+            '\'': 222,
+        };
+        return charToVkMap[char] || 0;
+    }
+    getCharModifier(char) {
+        if (char >= 'A' && char <= 'Z') {
+            return 1;
+        }
+        const shiftChars = '!@#$%^&*()_+{}|:"<>?~';
+        if (shiftChars.includes(char)) {
+            return 1;
+        }
+        return 0;
     }
 }
