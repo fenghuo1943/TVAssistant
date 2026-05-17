@@ -61,7 +61,7 @@ export class MouseController {
       const opened = driverModule.openDevice();
       console.log('虚拟鼠标设备打开结果:', opened);
       if (opened) {
-        this.useVirtualDriver = true;
+        //this.useVirtualDriver = true;
         console.log('虚拟鼠标设备已打开');
       } else {
         console.warn('虚拟鼠标设备打开失败，回退到 robotjs');
@@ -78,6 +78,9 @@ export class MouseController {
     if (this.useVirtualDriver && driverModule) {
       // 使用虚拟鼠标驱动
       driverModule.clickMouse(this.mapToVirtualButton(button),1);
+      setTimeout(() => {
+        driverModule.clickMouse(this.mapToVirtualButton(button),0);
+      }, 20);
     } else {
       // 回退到使用 robotjs
       robot.mouseClick(this.mapButton(button));
@@ -107,7 +110,7 @@ export class MouseController {
   scrollVertical(dy: number) {
     if (this.useVirtualDriver && driverModule) {
       // 使用虚拟鼠标驱动
-      console.log(`虚拟鼠标滚动: ${dy}`);
+      //console.log(`虚拟鼠标滚动: ${dy}`);
       driverModule.scrollMouse(dy/2.0);
     } else {
       // 回退到使用 robotjs
@@ -119,17 +122,17 @@ export class MouseController {
   }
 
   scrollHorizontal(dx: number) {
-    console.log(`虚拟鼠标滚动: ${dx}`);
+    //console.log(`虚拟鼠标滚动: ${dx}`);
     if (this.useVirtualDriver && driverModule) {
       // 使用虚拟鼠标驱动
       driverModule.scrollMouse(dx, 0);
     } else {
       // 回退到使用 robotjs
       const amount = dx * 5;
-      console.log(`机器人滚动: ${amount}`);
+      //console.log(`机器人滚动: ${amount}`);
       process.platform === "win32"
-        ? robot.scrollMouse(amount, 0)
-        : robot.scrollMouse(0, amount);
+        ? robot.scrollMouse(0, amount)
+        : robot.scrollMouse(amount, 0);
     }
   }
   private mapToVirtualButton(button: number): number {
