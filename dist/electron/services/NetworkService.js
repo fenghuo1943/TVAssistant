@@ -88,39 +88,50 @@ export class NetworkService {
         }
     }
     handlePacketV2(packet) {
-        switch (packet.type) {
-            case CommandType.Move:
-                const dx = packet.payload.readInt32LE(0);
-                const dy = packet.payload.readInt32LE(4);
-                this.mouse.move(dx, dy);
-                break;
-            case CommandType.Click:
-                this.mouse.click(packet.payload.readUInt8(0));
-                break;
-            case CommandType.VerticalScroll:
-                this.mouse.scrollVertical(packet.payload.readInt32LE(0));
-                break;
-            case CommandType.HorizontalScroll:
-                this.mouse.scrollHorizontal(packet.payload.readInt32LE(0));
-                break;
-            case CommandType.MouseDown:
-                this.mouse.mouseDown(packet.payload.readUInt8(0));
-                break;
-            case CommandType.MouseUp:
-                this.mouse.mouseUp(packet.payload.readUInt8(0));
-                break;
-            case CommandType.KeyDown:
-                this.keyboard.keyDown(packet.payload.readInt32LE(0), packet.payload.readUInt16LE(4));
-                break;
-            case CommandType.KeyUp:
-                this.keyboard.keyUp(packet.payload.readInt32LE(0), packet.payload.readUInt16LE(4));
-                break;
-            case CommandType.ComboKey:
-                this.keyboard.comboKey(packet.payload.readInt32LE(0), packet.payload.readUInt16LE(4));
-                break;
-            case CommandType.TextInput:
-                this.keyboard.textInput(packet.payload.toString("utf-8"));
-                break;
+        try {
+            switch (packet.type) {
+                case CommandType.Move:
+                    const dx = packet.payload.readInt32LE(0);
+                    const dy = packet.payload.readInt32LE(4);
+                    this.mouse.move(dx, dy);
+                    break;
+                case CommandType.Click:
+                    this.mouse.click(packet.payload.readUInt8(0));
+                    break;
+                case CommandType.VerticalScroll:
+                    this.mouse.scrollVertical(packet.payload.readInt32LE(0));
+                    break;
+                case CommandType.HorizontalScroll:
+                    this.mouse.scrollHorizontal(packet.payload.readInt32LE(0));
+                    break;
+                case CommandType.MouseDown:
+                    this.mouse.mouseDown(packet.payload.readUInt8(0));
+                    break;
+                case CommandType.MouseUp:
+                    this.mouse.mouseUp(packet.payload.readUInt8(0));
+                    break;
+                case CommandType.KeyDown:
+                    const keyDownVk = packet.payload.readInt32LE(0);
+                    const keyDownMod = packet.payload.readUInt16LE(4);
+                    this.keyboard.keyDown(keyDownVk, keyDownMod);
+                    break;
+                case CommandType.KeyUp:
+                    const keyUpVk = packet.payload.readInt32LE(0);
+                    const keyUpMod = packet.payload.readUInt16LE(4);
+                    this.keyboard.keyUp(keyUpVk, keyUpMod);
+                    break;
+                case CommandType.ComboKey:
+                    const comboVk = packet.payload.readInt32LE(0);
+                    const comboMod = packet.payload.readUInt16LE(4);
+                    this.keyboard.comboKey(comboVk, comboMod);
+                    break;
+                case CommandType.TextInput:
+                    this.keyboard.textInput(packet.payload.toString("utf-8"));
+                    break;
+            }
+        }
+        catch (error) {
+            console.error('处理 V2 数据包时出错:', error);
         }
     }
     startTcpServer() {

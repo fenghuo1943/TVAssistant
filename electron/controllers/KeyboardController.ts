@@ -56,37 +56,124 @@ export class KeyboardController {
     }
   }
   keyDown(vk: number, modifier: number) {
-    if (this.useVirtualDriver && driverModule) {
-      const scanCode = this.vkToScanCode(vk);
-      driverModule.keyboardMulti(modifier, 1, scanCode);
-    } else {
-      robot.keyToggle(this.vkToRobot(vk), "down", this.mapModifier(modifier));
+    try {
+      console.log(`KeyDown: vk=${vk}, modifier=${modifier}`);
+      
+      // 验证虚拟键码是否有效
+      if (!this.isValidVk(vk)) {
+        console.warn(`无效的虚拟键码: ${vk}`);
+        return;
+      }
+      
+      if (this.useVirtualDriver && driverModule) {
+        // 检查是否是修饰键本身
+        const isModifierKey = this.isModifierVk(vk);
+        if (isModifierKey) {
+          // 修饰键需要通过 modifier 位来设置，而不是放入 keys 数组
+          const newModifier = this.addModifierBit(modifier, vk);
+          const hidModifier = this.convertToHidModifier(newModifier);
+          driverModule.keyboardMulti(hidModifier, 0);  // 没有普通按键
+        } else {
+          const scanCode = this.vkToScanCode(vk);
+          const hidModifier = this.convertToHidModifier(modifier);
+          driverModule.keyboardMulti(hidModifier, 1, scanCode);
+        }
+      } else {
+        const robotKey = this.vkToRobot(vk);
+        if (robotKey === "unknown") {
+          console.warn(`无法转换虚拟键码 ${vk} 为 robotjs 按键`);
+          return;
+        }
+        robot.keyToggle(robotKey, "down", this.mapModifier(modifier));
+      }
+    } catch (error) {
+      console.error(`执行 keyDown 时出错 (vk=${vk}):`, error);
     }
   }
 
   keyUp(vk: number, modifier: number) {
-    if (this.useVirtualDriver && driverModule) {
-      const scanCode = this.vkToScanCode(vk);
-      driverModule.keyboardMulti(modifier, 0, scanCode);
-    } else {
-      robot.keyToggle(this.vkToRobot(vk), "up", this.mapModifier(modifier));
+    try {
+      console.log(`KeyUp: vk=${vk}, modifier=${modifier}`);
+      
+      // 验证虚拟键码是否有效
+      if (!this.isValidVk(vk)) {
+        console.warn(`无效的虚拟键码: ${vk}`);
+        return;
+      }
+      
+      if (this.useVirtualDriver && driverModule) {
+        // 检查是否是修饰键本身
+        const isModifierKey = this.isModifierVk(vk);
+        if (isModifierKey) {
+          // 修饰键需要通过 modifier 位来清除
+          const newModifier = this.removeModifierBit(modifier, vk);
+          const hidModifier = this.convertToHidModifier(newModifier);
+          driverModule.keyboardMulti(hidModifier, 0);  // 没有普通按键
+        } else {
+          const scanCode = this.vkToScanCode(vk);
+          const hidModifier = this.convertToHidModifier(modifier);
+          driverModule.keyboardMulti(hidModifier, 0, scanCode);
+        }
+      } else {
+        const robotKey = this.vkToRobot(vk);
+        if (robotKey === "unknown") {
+          console.warn(`无法转换虚拟键码 ${vk} 为 robotjs 按键`);
+          return;
+        }
+        robot.keyToggle(robotKey, "up", this.mapModifier(modifier));
+      }
+    } catch (error) {
+      console.error(`执行 keyUp 时出错 (vk=${vk}):`, error);
     }
   }
 
   comboKey(vk: number, modifier: number) {
-    if (this.useVirtualDriver && driverModule) {
-      const scanCode = this.vkToScanCode(vk);
-      driverModule.keyboardMulti(modifier, 1, scanCode);
-      setTimeout(() => {
-        driverModule.keyboardMulti(modifier, 0, scanCode);
-      }, 50);
-    } else {
-      robot.keyTap(this.vkToRobot(vk), this.mapModifier(modifier));
+    try {
+      // 验证虚拟键码是否有效
+      if (!this.isValidVk(vk)) {
+        console.warn(`无效的虚拟键码: ${vk}`);
+        return;
+      }
+      
+      if (this.useVirtualDriver && driverModule) {
+        // 检查是否是修饰键本身
+        const isModifierKey = this.isModifierVk(vk);
+        if (isModifierKey) {
+          // 修饰键的点击：先按下再释放
+          const newModifier = this.addModifierBit(modifier, vk);
+          const hidModifierDown = this.convertToHidModifier(newModifier);
+          const hidModifierUp = this.convertToHidModifier(modifier);
+          driverModule.keyboardMulti(hidModifierDown, 0);
+          setTimeout(() => {
+            driverModule.keyboardMulti(hidModifierUp, 0);
+          }, 50);
+        } else {
+          const scanCode = this.vkToScanCode(vk);
+          const hidModifier = this.convertToHidModifier(modifier);
+          driverModule.keyboardMulti(hidModifier, 1, scanCode);
+          setTimeout(() => {
+            driverModule.keyboardMulti(hidModifier, 0, scanCode);
+          }, 50);
+        }
+      } else {
+        const robotKey = this.vkToRobot(vk);
+        if (robotKey === "unknown") {
+          console.warn(`无法转换虚拟键码 ${vk} 为 robotjs 按键`);
+          return;
+        }
+        robot.keyTap(robotKey, this.mapModifier(modifier));
+      }
+    } catch (error) {
+      console.error(`执行 comboKey 时出错 (vk=${vk}):`, error);
     }
   }
 
   textInput(text: string) {
-    robot.typeString(text);
+    try {
+      robot.typeString(text);
+    } catch (error) {
+      console.error(`执行 textInput 时出错:`, error);
+    }
   }
 
   private mapModifier(mod: number): string[] {
@@ -154,7 +241,7 @@ export class KeyboardController {
       16: "shift",
       17: "control",
       18: "alt",
-      20: "caps_lock",
+      20: "capslock",
       27: "escape",
       32: "space",
       33: "pageup",
@@ -167,6 +254,7 @@ export class KeyboardController {
       40: "down",
       45: "insert",
       46: "delete",
+      91: "command",
       144: "num_lock",
     };
     if (controlKeyMap[vk]) {
@@ -248,6 +336,7 @@ export class KeyboardController {
       16: 0xE1,  // Left Shift
       17: 0xE0,  // Left Control
       18: 0xE2,  // Left Alt
+      91: 0xE3,  // Left GUI (Win key)
       
       // 符号键
       189: 0x2D, // -
@@ -318,5 +407,118 @@ export class KeyboardController {
     }
 
     return 0;
+  }
+
+  // 新增方法：验证虚拟键码是否有效
+  private isValidVk(vk: number): boolean {
+    // 检查是否为合理的虚拟键码范围
+    return vk >= 8 && vk <= 255 && vk !== 0;
+  }
+
+  // 新增方法：判断是否是修饰键
+  private isModifierVk(vk: number): boolean {
+    const modifierVks = [16, 17, 18, 91, 92, 160, 161, 162, 163, 164, 165];
+    return modifierVks.includes(vk);
+  }
+
+  // 新增方法：根据 VK 添加对应的 modifier 位
+  private addModifierBit(currentModifier: number, vk: number): number {
+    let newModifier = currentModifier;
+    
+    // Left Control (17, 162) -> bit 0
+    if (vk === 17 || vk === 162) {
+      newModifier |= 1;
+    }
+    // Left Shift (16, 160) -> bit 1
+    else if (vk === 16 || vk === 160) {
+      newModifier |= 2;
+    }
+    // Left Alt (18, 164) -> bit 2
+    else if (vk === 18 || vk === 164) {
+      newModifier |= 4;
+    }
+    // Left/Right GUI (91, 92) -> bit 3
+    else if (vk === 91 || vk === 92) {
+      newModifier |= 8;
+    }
+    // Right Control (163) -> bit 4
+    else if (vk === 163) {
+      newModifier |= 16;
+    }
+    // Right Shift (161) -> bit 5
+    else if (vk === 161) {
+      newModifier |= 32;
+    }
+    // Right Alt (165) -> bit 6
+    else if (vk === 165) {
+      newModifier |= 64;
+    }
+    
+    return newModifier;
+  }
+
+  // 新增方法：根据 VK 移除对应的 modifier 位
+  private removeModifierBit(currentModifier: number, vk: number): number {
+    let newModifier = currentModifier;
+    
+    // Left Control (17, 162) -> bit 0
+    if (vk === 17 || vk === 162) {
+      newModifier &= ~1;
+    }
+    // Left Shift (16, 160) -> bit 1
+    else if (vk === 16 || vk === 160) {
+      newModifier &= ~2;
+    }
+    // Left Alt (18, 164) -> bit 2
+    else if (vk === 18 || vk === 164) {
+      newModifier &= ~4;
+    }
+    // Left/Right GUI (91, 92) -> bit 3
+    else if (vk === 91 || vk === 92) {
+      newModifier &= ~8;
+    }
+    // Right Control (163) -> bit 4
+    else if (vk === 163) {
+      newModifier &= ~16;
+    }
+    // Right Shift (161) -> bit 5
+    else if (vk === 161) {
+      newModifier &= ~32;
+    }
+    // Right Alt (165) -> bit 6
+    else if (vk === 165) {
+      newModifier &= ~64;
+    }
+    
+    return newModifier;
+  }
+
+  // 新增方法：将传入的 modifier 转换为 USB HID 标准的 modifier byte
+  // 输入格式: Bit 0=Alt, Bit 1=Ctrl, Bit 2=Shift, Bit 3=Win
+  // 输出格式: Bit 0=Left Ctrl, Bit 1=Left Shift, Bit 2=Left Alt, Bit 3=Left GUI
+  private convertToHidModifier(inputModifier: number): number {
+    let hidModifier = 0;
+    
+    // 输入 Bit 1 (Ctrl) -> 输出 Bit 0 (Left Control)
+    if (inputModifier & 0x02) {
+      hidModifier |= 0x01;
+    }
+    
+    // 输入 Bit 2 (Shift) -> 输出 Bit 1 (Left Shift)
+    if (inputModifier & 0x04) {
+      hidModifier |= 0x02;
+    }
+    
+    // 输入 Bit 0 (Alt) -> 输出 Bit 2 (Left Alt)
+    if (inputModifier & 0x01) {
+      hidModifier |= 0x04;
+    }
+    
+    // 输入 Bit 3 (Win) -> 输出 Bit 3 (Left GUI)
+    if (inputModifier & 0x08) {
+      hidModifier |= 0x08;
+    }
+    
+    return hidModifier;
   }
 }
