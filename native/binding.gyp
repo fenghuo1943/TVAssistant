@@ -11,7 +11,21 @@
       ],
       "cflags!": [ "-fno-exceptions" ],
       "cflags_cc!": [ "-fno-exceptions" ],
-      "defines": [ "NAPI_DISABLE_CPP_EXCEPTIONS" ]
+      "defines": [ "NAPI_DISABLE_CPP_EXCEPTIONS" ],
+      "libraries": [
+        "-lshell32",
+        "-lgdi32",
+        "-lgdiplus"
+      ],
+      "msvs_settings": {
+        "VCLinkerTool": {
+          "AdditionalDependencies": [
+            "shell32.lib",
+            "gdi32.lib",
+            "gdiplus.lib"
+          ]
+        }
+      }
     }
   ]
 }

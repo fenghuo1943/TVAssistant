@@ -30,6 +30,8 @@
   },
   "dependencies": {
     "clipboardy": "^5.3.1",
+    "pe-library": "^2.0.1",
+    "resedit": "^3.0.2",
     "robotjs": "^0.7.0",
     "vue": "^3.5.31"
   }

@@ -143,6 +143,13 @@ function closeSettings() {
 }
 
 function openSite(item: Shortcut) {
+  // 如果是本地应用，直接打开应用
+  if (item.type === 'application') {
+    openLocalApp(item);
+    return;
+  }
+  
+  // 否则打开网站
   appState.activeUrl = item.url;
   appState.activeTitle = item.name;
   appState.showSettings = false;
@@ -162,6 +169,25 @@ function openSite(item: Shortcut) {
       backButtonRefManager.ref.value?.focus();
     }
   });
+}
+
+async function openLocalApp(item: Shortcut) {
+  try {
+    console.log(`正在打开本地应用: ${item.name}`, item.url);
+    
+    const result = await ipcRenderer?.invoke<{ success: boolean; error?: string }>('app:open-local', item.url);
+    
+    if (result?.success) {
+      console.log(`成功打开应用: ${item.name}`);
+    } else {
+      console.error(`打开应用失败: ${result?.error}`);
+      // 可以显示错误提示
+      alert(`无法打开应用: ${result?.error || '未知错误'}`);
+    }
+  } catch (error) {
+    console.error(`打开本地应用时出错:`, error);
+    alert(`打开应用时出错: ${error instanceof Error ? error.message : '未知错误'}`);
+  }
 }
 
 function openConfiguredModule() {

@@ -12,6 +12,30 @@ import { StandardKey } from './types/keyMap.js';
 const { app, BrowserWindow, Menu, Tray, ipcMain, nativeImage, shell } = electron;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// 导入 native addon
+let driver: any = null;
+try {
+    const addonPath = path.resolve(__dirname, '../../native/build/Release/driver.node');
+    console.log('尝试加载 Native addon:', addonPath);
+    
+    if (fs.existsSync(addonPath)) {
+        console.log('Native addon 文件存在');
+        // 使用 require 加载 native 模块（createRequire 用于 ES modules）
+        const { createRequire } = await import('module');
+        const require = createRequire(import.meta.url);
+        driver = require(addonPath);
+        console.log('Native driver module loaded successfully');
+        console.log('Available functions:', Object.keys(driver));
+    } else {
+        console.warn('Native driver module not found at:', addonPath);
+    }
+} catch (error) {
+    console.error('Failed to load native driver module:', error);
+    console.error('Error details:', error instanceof Error ? error.message : error);
+    console.error('Error stack:', error instanceof Error ? error.stack : error);
+}
+
 const isDevelopment = process.env.NODE_ENV === 'development';
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
 const rendererHtmlPath = path.resolve(__dirname, '../index.html');
@@ -478,6 +502,126 @@ app.whenReady().then(() => {
         } catch (error) {
             console.error(`通过路径删除图标缓存失败: ${filePath}`, error);
             return false;
+        }
+    });
+
+    // 打开文件选择对话框选择 .exe 文件
+    ipcMain.handle('file:select-exe', async () => {
+        const result = await electron.dialog.showOpenDialog(win, {
+            title: '选择应用程序',
+            properties: ['openFile'],
+            filters: [
+                { name: '可执行文件', extensions: ['exe'] },
+                { name: '所有文件', extensions: ['*'] }
+            ]
+        });
+        
+        if (result.canceled || result.filePaths.length === 0) {
+            return null;
+        }
+        
+        return result.filePaths[0];
+    });
+
+    // 从可执行文件中提取图标
+    ipcMain.handle('icon:extract-from-exe', async (_event, exePath: string) => {
+        if (!exePath || !fs.existsSync(exePath)) {
+            console.warn(`文件不存在: ${exePath}`);
+            return null;
+        }
+        
+        try {
+            console.log(`开始提取图标: ${exePath}`);
+            
+            // 生成缓存路径
+            const cachePath = getIconCachePath(`exe://${exePath}`);
+            
+            // 确保缓存目录存在
+            fs.mkdirSync(path.dirname(cachePath), { recursive: true });
+            
+            // 尝试使用 native addon 提取高清图标
+            if (driver && driver.extractIcon) {
+                console.log('使用 Native API 提取图标');
+                const success = driver.extractIcon(exePath, cachePath.replace('file:///', ''));
+                
+                if (success) {
+                    console.log(`成功使用 Native API 提取图标到 ${cachePath}`);
+                    const stats = fs.statSync(cachePath.replace('file:///', ''));
+                    console.log(`图标文件大小: ${(stats.size / 1024).toFixed(2)} KB`);
+                    return `file://${cachePath.replace('file:///', '')}`;
+                } else {
+                    console.warn('Native API 提取失败，降级到 app.getFileIcon');
+                }
+            } else {
+                console.log('Native addon 不可用，使用 app.getFileIcon');
+            }
+            
+            // 降级方案：使用 app.getFileIcon
+            const icon = await app.getFileIcon(exePath, { size: 'large' });
+            
+            if (icon.isEmpty()) {
+                console.warn(`无法从 ${exePath} 提取图标（图标为空）`);
+                return null;
+            }
+            
+            const originalSize = icon.getSize();
+            console.log(`成功提取图标，原始尺寸: ${originalSize.width}x${originalSize.height}`);
+            
+            // 暂时禁用缩放，直接使用原始尺寸
+            const finalIcon = icon;
+            
+            console.log(`最终图标尺寸: ${finalIcon.getSize().width}x${finalIcon.getSize().height}`);
+            
+            // 保存为 PNG 文件
+            const buffer = finalIcon.toPNG();
+            fs.writeFileSync(cachePath.replace('file:///', ''), buffer);
+            
+            console.log(`已从 ${exePath} 提取并缓存图标到 ${cachePath}`);
+            console.log(`图标文件大小: ${(buffer.length / 1024).toFixed(2)} KB`);
+            return `file://${cachePath.replace('file:///', '')}`;
+        } catch (error) {
+            console.error(`从 ${exePath} 提取图标失败:`, error);
+            console.error(`错误详情:`, error instanceof Error ? error.message : error);
+            return null;
+        }
+    });
+
+    // 打开本地应用程序
+    ipcMain.handle('app:open-local', async (_event, exePath: string) => {
+        if (!exePath) {
+            return { success: false, error: '文件路径为空' };
+        }
+        
+        try {
+            // 转换 file:// URL 为本地路径
+            let filePath = exePath;
+            if (exePath.startsWith('file:///')) {
+                filePath = decodeURIComponent(exePath.substring(8));
+                // Windows 路径处理
+                if (process.platform === 'win32') {
+                    filePath = filePath.replace(/^\//, '');
+                }
+            }
+            
+            // 检查文件是否存在
+            if (!fs.existsSync(filePath)) {
+                console.error(`文件不存在: ${filePath}`);
+                return { success: false, error: '文件不存在' };
+            }
+            
+            // 使用 shell.openPath 打开文件
+            const result = await shell.openPath(filePath);
+            
+            if (result) {
+                console.error(`打开应用失败: ${result}`);
+                return { success: false, error: result };
+            }
+            
+            console.log(`成功打开应用: ${filePath}`);
+            return { success: true };
+        } catch (error) {
+            console.error(`打开应用时出错:`, error);
+            return { success: false, error: error instanceof Error ? error.message : '未知错误' };
         }
     });
 

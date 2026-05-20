@@ -174,6 +174,20 @@ async function loadIconToCache(item: Shortcut): Promise<string | null> {
   // 优先使用自定义 icon
   if (item.icon) {
     iconUrl = item.icon;
+  } else if (item.type === 'application' && item.url) {
+    // 本地应用类型，尝试从 exe 提取图标
+    try {
+      console.log(`正在为本地应用 ${item.name} 提取图标...`);
+      const extractedIcon = await ipcRenderer?.invoke<string>('icon:extract-from-exe', 
+        item.url.startsWith('file:///') ? decodeURIComponent(item.url.substring(8)).replace(/^\//, '') : item.url
+      );
+      if (extractedIcon) {
+        iconUrl = extractedIcon;
+        console.log(`成功提取图标: ${item.name}`);
+      }
+    } catch (error) {
+      console.error(`提取应用图标失败: ${item.name}`, error);
+    }
   } else if (item.type === 'website' && item.url) {
     // 网站类型自动获取 favicon
     try {
@@ -249,6 +263,7 @@ function getIconSrc(item: Shortcut): string {
     }
   }
   
+  // 本地应用如果没有图标，返回空字符串（会显示默认图标）
   return '';
 }
 
@@ -271,15 +286,12 @@ function handleIconError(event: Event, item: Shortcut) {
 onMounted(async () => {
   // 异步加载所有图标到缓存
   const loadPromises = props.shortcuts.map(async (item) => {
-    // 只处理网站类型的快捷方式
-    if (item.type === 'website' && item.url) {
-      try {
-        await loadIconToCache(item);
-        // 触发重新渲染
-        iconCacheMap.value = new Map(iconCacheMap.value);
-      } catch (err) {
-        console.error(`预加载图标失败: ${item.name}`, err);
-      }
+    try {
+      await loadIconToCache(item);
+      // 触发重新渲染
+      iconCacheMap.value = new Map(iconCacheMap.value);
+    } catch (err) {
+      console.error(`预加载图标失败: ${item.name}`, err);
     }
   });
   

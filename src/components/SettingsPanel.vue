@@ -44,6 +44,17 @@
           :is-secondary-focused="isSecondaryFocused"
           @update-setting="$emit('update-setting', $event)"
         />
+        
+        <LocalAppManagement
+          v-else-if="activeMenu === 'add-local-app'"
+          ref="localAppManagementRef"
+          :settings="settings"
+          :focused-index="focusedLocalAppIndex"
+          :is-secondary-focused="isSecondaryFocused"
+          @update-setting="$emit('update-setting', $event)"
+          @set-ref="setLocalAppItemRef"
+          @item-removed="handleLocalAppRemoved"
+        />
       </div>
     </div>
   </section>
@@ -56,6 +67,7 @@ import SettingsSidebar from './Settings/SettingsSidebar.vue';
 import GeneralSettings from './Settings/GeneralSettings.vue';
 import SiteManagement from './Settings/SiteManagement.vue';
 import AddSiteForm from './Settings/AddSiteForm.vue';
+import LocalAppManagement from './Settings/LocalAppManagement.vue';
 import type { AppSettings } from '../settings.ts';
 import type { IpcRenderer } from '../plugins/types.ts';
 import { StandardKey, isInInputElement } from '../types/keyMap.js';
@@ -96,10 +108,15 @@ const {
 const settingsShellRef = ref<HTMLElement | null>(null);
 const backButtonRef = ref<HTMLButtonElement | null>(null);
 const addSiteFormRef = ref<InstanceType<typeof AddSiteForm> | null>(null);
+const localAppManagementRef = ref<InstanceType<typeof LocalAppManagement> | null>(null);
 
 // 编辑弹窗状态
 const isEditDialogOpen = ref(false);
 const editDialogFocusedIndex = ref(0); // 0: 名称输入框，1: URL 输入框，2: 图标输入框，3: 确认按钮，4: 取消按钮
+
+// 本地应用管理相关状态
+const focusedLocalAppIndex = ref(0);
+const localAppItemRefs = ref<HTMLDivElement[]>([]);
 
 const menuItems: Array<{ key: SettingsMenuKey; label: string }> = [
   { key: 'general', label: '常规' },
@@ -127,6 +144,8 @@ const isSecondaryFocused = computed(() => {
       return focusedSiteIndex.value >= 0 || focusedButtonIndex.value >= 0;
     case 'add-site':
       return focusedInputIndex.value >= 0 || focusedButtonIndex.value >= 0;
+    case 'add-local-app':
+      return focusedLocalAppIndex.value >= 0;
     default:
       return false;
   }
@@ -141,6 +160,12 @@ function setSidebarItemRef(el: HTMLButtonElement, index: number) {
 function setSiteItemRef(el: HTMLDivElement, index: number) {
   if (el) {
     siteItemRefs.value[index] = el;
+  }
+}
+
+function setLocalAppItemRef(el: HTMLDivElement, index: number) {
+  if (el) {
+    localAppItemRefs.value[index] = el;
   }
 }
 
@@ -176,6 +201,12 @@ function handleKeydown(event: KeyboardEvent) {
   // 如果在添加新网址页面
   if (props.activeMenu === 'add-site') {
     handleAddSiteKeydown(event);
+    return;
+  }
+  
+  // 如果在本地应用管理页面
+  if (props.activeMenu === 'add-local-app' && focusedLocalAppIndex.value >= 0) {
+    handleLocalAppManagementKeydown(event);
     return;
   }
   
@@ -243,6 +274,11 @@ function handleSidebarKeydown(event: KeyboardEvent) {
       focusedButtonIndex.value = -1;
       nextTick(() => {
         addSiteFormRef.value?.siteNameInputRef?.focus();
+      });
+    } else if (currentMenuKey === 'add-local-app') {
+      focusedLocalAppIndex.value = 0;
+      nextTick(() => {
+        focusCurrentLocalAppButton(0);
       });
     }
     return;
@@ -578,6 +614,113 @@ function handleFocusFirstButton() {
   nextTick(() => {
     focusCurrentSiteButton(0);
   });
+}
+
+function handleLocalAppManagementKeydown(event: KeyboardEvent) {
+  const { key } = event;
+  
+  // 在本地应用管理页面按 Backspace 或 Escape：返回侧边栏
+  if (key === StandardKey.BACK) {
+    event.preventDefault();
+    // 回到侧边栏，保持当前选中的菜单项
+    const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+    focusedSidebarIndex.value = currentMenuIndex >= 0 ? currentMenuIndex : 0;
+    focusedLocalAppIndex.value = 0;
+    nextTick(() => {
+      sidebarItemRefs.value[focusedSidebarIndex.value]?.focus();
+    });
+    return;
+  }
+  
+  // 上下键：在不同的应用项之间切换
+  if (key === StandardKey.UP) {
+    event.preventDefault();
+    // 向上切换到上一个应用项
+    if (focusedLocalAppIndex.value > 0) {
+      focusedLocalAppIndex.value--;
+      nextTick(() => {
+        focusCurrentLocalAppButton(focusedLocalAppIndex.value);
+      });
+    } else {
+      // 循环到最后一个应用项
+      focusedLocalAppIndex.value = localAppItemRefs.value.length - 1;
+      nextTick(() => {
+        focusCurrentLocalAppButton(focusedLocalAppIndex.value);
+      });
+    }
+    return;
+  }
+  
+  if (key === StandardKey.DOWN) {
+    event.preventDefault();
+    // 向下切换到下一个应用项
+    if (focusedLocalAppIndex.value < localAppItemRefs.value.length - 1) {
+      focusedLocalAppIndex.value++;
+      nextTick(() => {
+        focusCurrentLocalAppButton(focusedLocalAppIndex.value);
+      });
+    } else {
+      // 循环到第一个应用项
+      focusedLocalAppIndex.value = 0;
+      nextTick(() => {
+        focusCurrentLocalAppButton(focusedLocalAppIndex.value);
+      });
+    }
+    return;
+  }
+  
+  if (key === StandardKey.CONFIRM) {
+    event.preventDefault();
+    // 触发删除按钮点击（通过查找 DOM 元素模拟点击）
+    const deleteButton = getLocalAppDeleteButtonByIndex(focusedLocalAppIndex.value);
+    deleteButton?.click();
+    return;
+  }
+}
+
+/**
+ * 聚焦当前本地应用项的删除按钮
+ */
+function focusCurrentLocalAppButton(index: number) {
+  const currentItem = localAppItemRefs.value[index];
+  if (!currentItem) return;
+  
+  const deleteButton = currentItem.querySelector('.delete-button') as HTMLButtonElement | null;
+  if (deleteButton) {
+    deleteButton.focus();
+  }
+}
+
+/**
+ * 根据索引获取本地应用的删除按钮元素
+ */
+function getLocalAppDeleteButtonByIndex(index: number): HTMLButtonElement | null {
+  const currentItem = localAppItemRefs.value[index];
+  if (!currentItem) return null;
+  
+  return currentItem.querySelector('.delete-button') as HTMLButtonElement | null;
+}
+
+// 处理本地应用删除后的焦点调整
+function handleLocalAppRemoved(removedIndex: number) {
+  // 删除后，将焦点移动到上一个元素（如果存在）
+  const newIndex = Math.max(0, removedIndex - 1);
+  
+  // 检查新索引是否在有效范围内
+  if (newIndex < localAppItemRefs.value.length) {
+    focusedLocalAppIndex.value = newIndex;
+    nextTick(() => {
+      focusCurrentLocalAppButton(newIndex);
+    });
+  } else if (localAppItemRefs.value.length === 0) {
+    // 如果没有应用了，返回侧边栏
+    const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
+    focusedSidebarIndex.value = currentMenuIndex >= 0 ? currentMenuIndex : 0;
+    focusedLocalAppIndex.value = 0;
+    nextTick(() => {
+      sidebarItemRefs.value[focusedSidebarIndex.value]?.focus();
+    });
+  }
 }
 
 // 注意：编辑弹窗的键盘事件现在由 SiteManagement 组件自行处理
