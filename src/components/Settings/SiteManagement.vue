@@ -211,15 +211,28 @@ async function toggleSite(site: SiteItem) {
         try {
           console.log(`[SiteManagement] 正在删除图标缓存: ${site.name}`);
           console.log(`[SiteManagement] 图标路径: ${site.icon}`);
+          console.log(`[SiteManagement] 应用类型: ${site.type}`);
           
-          // 如果是本地文件路径，直接删除文件
-          if (site.icon.startsWith('file://')) {
+          // 如果是本地应用或本地文件路径
+          if (site.type === 'application' || site.icon.startsWith('file://')) {
             // 将 file:// 路径转换为普通路径
-            const filePath = site.icon.replace('file://', '');
-            console.log(`文件路径: ${filePath}`);
+            let filePath = site.icon;
+            if (filePath.startsWith('file:///')) {
+              // Windows: file:///C:/... -> C:/...
+              filePath = decodeURIComponent(filePath.substring(8));
+              if (process.platform === 'win32') {
+                filePath = filePath.replace(/^\//, '');
+              }
+            } else if (filePath.startsWith('file://')) {
+              // 其他情况
+              filePath = decodeURIComponent(filePath.substring(7));
+            }
+            
+            console.log(`[SiteManagement] 转换后的文件路径: ${filePath}`);
             await ipcRenderer?.invoke('icon:delete-by-path', filePath);
           } else if (site.icon.startsWith('http://') || site.icon.startsWith('https://')) {
             // 如果是网络 URL，通过 URL 删除
+            console.log(`[SiteManagement] 通过网络 URL 删除图标`);
             await ipcRenderer?.invoke('icon:delete', site.icon);
           }
           

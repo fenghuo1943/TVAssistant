@@ -211,6 +211,47 @@ async function handleDeleteApp(app: any, index: number) {
   try {
     isDeleting.value = true;
     
+    console.log(`[LocalAppManagement] 正在删除本地应用: ${app.name}`);
+    
+    // 删除图标缓存
+    if (app.icon) {
+      try {
+        console.log(`[LocalAppManagement] 正在删除图标缓存: ${app.name}`);
+        console.log(`[LocalAppManagement] 图标路径: ${app.icon}`);
+        console.log(`[LocalAppManagement] 应用类型: ${app.type}`);
+        
+        // 本地应用图标都是 file:// 格式
+        if (app.type === 'application' || app.icon.startsWith('file://')) {
+          // 将 file:// URL 转换为本地文件系统路径
+          let filePath = app.icon;
+          
+          if (filePath.startsWith('file:///')) {
+            // Windows: file:///C:/... -> C:/...
+            filePath = decodeURIComponent(filePath.substring(8));
+            if (process.platform === 'win32') {
+              filePath = filePath.replace(/^\//, '');
+            }
+          } else if (filePath.startsWith('file://')) {
+            // 其他情况
+            filePath = decodeURIComponent(filePath.substring(7));
+          }
+          
+          console.log(`[LocalAppManagement] 转换后的文件路径: ${filePath}`);
+          await ipcRenderer?.invoke('icon:delete-by-path', filePath);
+        } else if (app.icon.startsWith('http://') || app.icon.startsWith('https://')) {
+          // 如果是网络 URL（不太可能，但为了完整性）
+          console.log(`[LocalAppManagement] 通过网络 URL 删除图标`);
+          await ipcRenderer?.invoke('icon:delete', app.icon);
+        }
+        
+        console.log(`[LocalAppManagement] 图标缓存已删除: ${app.name}`);
+      } catch (error) {
+        console.error('[LocalAppManagement] 删除图标缓存失败:', error);
+      }
+    } else {
+      console.log(`[LocalAppManagement] 该应用没有图标缓存`);
+    }
+    
     // 从自定义快捷方式中移除
     const newCustomShortcuts = props.settings.customShortcuts.filter(sc => sc.url !== app.url);
     const newUrls = props.settings.enabledShortcuts.filter(url => url !== app.url);
@@ -222,8 +263,10 @@ async function handleDeleteApp(app: any, index: number) {
     
     emit('item-removed', index);
     
+    console.log(`[LocalAppManagement] 应用已成功删除: ${app.name}`);
+    
   } catch (error) {
-    console.error('删除本地应用失败:', error);
+    console.error('[LocalAppManagement] 删除本地应用失败:', error);
   } finally {
     isDeleting.value = false;
   }

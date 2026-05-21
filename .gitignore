@@ -4,3 +4,9 @@ node_modules/
 native/build/
 native/*.node
 *.node
+dist/
+dist-portable/
+
+# 本地数据目录（便携式版本的配置数据）
+data/
+release/

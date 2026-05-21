@@ -14,8 +14,14 @@ const __dirname = path.dirname(__filename);
 // 导入 native addon
 let driver = null;
 try {
-    const addonPath = path.resolve(__dirname, '../../native/build/Release/driver.node');
+    // 根据环境判断 addon 路径
+    // 开发环境：使用相对路径
+    // 生产环境（打包后）：使用 process.resourcesPath
+    const addonPath = app.isPackaged
+        ? path.join(process.resourcesPath, 'native/build/Release/driver.node')
+        : path.resolve(__dirname, '../../native/build/Release/driver.node');
     console.log('尝试加载 Native addon:', addonPath);
+    console.log('应用状态 - isPackaged:', app.isPackaged);
     if (fs.existsSync(addonPath)) {
         console.log('Native addon 文件存在');
         // 使用 require 加载 native 模块（createRequire 用于 ES modules）
@@ -37,6 +43,29 @@ catch (error) {
 const isDevelopment = process.env.NODE_ENV === 'development';
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
 const rendererHtmlPath = path.resolve(__dirname, '../index.html');
+// 设置用户数据目录为程序所在目录的 data 文件夹（实现完全便携）
+// 开发环境：使用项目根目录的 data 文件夹
+// 生产环境（打包后）：使用可执行文件所在目录的 data 文件夹
+let localDataDir;
+if (app.isPackaged) {
+    // 打包后的应用：使用可执行文件所在目录
+    const appDir = path.dirname(app.getPath('exe'));
+    localDataDir = path.join(appDir, 'data');
+}
+else {
+    // 开发环境或未打包：使用项目根目录
+    // __dirname 是 dist/electron 目录，需要向上一级到项目根目录
+    const projectRoot = path.resolve(__dirname, '..');
+    localDataDir = path.join(projectRoot, 'data');
+}
+try {
+    fs.mkdirSync(localDataDir, { recursive: true });
+    app.setPath('userData', localDataDir);
+    console.log('用户数据目录已设置为:', localDataDir);
+}
+catch (error) {
+    console.error('设置用户数据目录失败:', error);
+}
 const forwardedKeys = new Set([
     StandardKey.CONFIRM, // 空格键 - 确定/播放暂停
     StandardKey.MENU, // M 键 - 呼出菜单

@@ -13,17 +13,54 @@
     "build:renderer": "vite build",
     "build:electron": "tsc -p tsconfig.json",
     "build": "npm run build:renderer && npm run build:electron",
-    "start": "node scripts/start-electron.mjs"
+    "start": "node scripts/start-electron.mjs",
+    "build:portable": "npm run build && node scripts/build-portable.mjs",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "build": {
+    "appId": "com.tvassistant.app",
+    "productName": "TVAssistant",
+    "directories": {
+      "output": "release",
+      "buildResources": "electron/assets"
+    },
+    "files": [
+      "dist/**/*",
+      "native/build/Release/driver.node",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "native/build/Release",
+        "to": "native/build/Release",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "electron/assets/tray-icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
   "devDependencies": {
     "@types/node": "^25.5.0",
     "@vitejs/plugin-vue": "^6.0.5",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "^41.1.0",
+    "electron-builder": "^26.8.1",
     "typescript": "^6.0.2",
     "vite": "^8.0.3",
     "wait-on": "^9.0.4"
