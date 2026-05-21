@@ -370,10 +370,7 @@ function createWindow() {
         win.webContents.openDevTools();
     } else {
         win.loadFile(rendererHtmlPath);
-        // 临时启用开发者工具以调试图标缓存问题
-        setTimeout(() => {
-            win.webContents.openDevTools();
-        }, 1000);
+        // 生产环境不打开开发者工具
     }
 
     win.on('close', (event) => {
