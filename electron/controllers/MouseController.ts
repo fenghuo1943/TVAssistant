@@ -54,17 +54,30 @@ export class MouseController {
   private accumulatedX = 0;
   private accumulatedY = 0;
 
-  constructor() {
+  constructor(useVirtualDriver: boolean = false) {
+    this.useVirtualDriver = useVirtualDriver;
     this.startMouseLoop();
-    // 如果驱动模块可用，尝试打开设备
-    if (driverModule) {
+    // 如果驱动模块可用且启用虚拟驱动，尝试打开设备
+    if (driverModule && this.useVirtualDriver) {
       const opened = driverModule.openDevice();
       console.log('虚拟鼠标设备打开结果:', opened);
       if (opened) {
-        //this.useVirtualDriver = true;
         console.log('虚拟鼠标设备已打开');
       } else {
         console.warn('虚拟鼠标设备打开失败，回退到 robotjs');
+        this.useVirtualDriver = false;
+      }
+    }
+  }
+
+  setUseVirtualDriver(enabled: boolean) {
+    this.useVirtualDriver = enabled;
+    if (enabled && driverModule) {
+      const opened = driverModule.openDevice();
+      console.log('虚拟鼠标设备打开结果:', opened);
+      if (!opened) {
+        console.warn('虚拟鼠标设备打开失败，回退到 robotjs');
+        this.useVirtualDriver = false;
       }
     }
   }

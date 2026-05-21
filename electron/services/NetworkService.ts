@@ -12,10 +12,19 @@ export class NetworkService {
   private currentClient?: { address: string; port: number };
   private lastHeartbeat = Date.now();
 
-  private mouse = new MouseController();
-  private keyboard = new KeyboardController();
+  private mouse: MouseController;
+  private keyboard: KeyboardController;
 
-  constructor(private port = 5001, private onLog?: (msg: string) => void) {}
+  constructor(private port = 5001, private onLog?: (msg: string) => void, 
+              useVirtualMouseDriver: boolean = false, useVirtualKeyboardDriver: boolean = false) {
+    this.mouse = new MouseController(useVirtualMouseDriver);
+    this.keyboard = new KeyboardController(useVirtualKeyboardDriver);
+  }
+
+  updateSettings(useVirtualMouseDriver: boolean, useVirtualKeyboardDriver: boolean) {
+    this.mouse.setUseVirtualDriver(useVirtualMouseDriver);
+    this.keyboard.setUseVirtualDriver(useVirtualKeyboardDriver);
+  }
 
   start() {
     this.running = true;

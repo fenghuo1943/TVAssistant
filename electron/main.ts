@@ -86,6 +86,7 @@ let isSettingsPanelFocused = false;
 let win: InstanceType<typeof BrowserWindow>;
 let tray: InstanceType<typeof Tray> | null = null;
 let isQuitting = false;
+let network: NetworkService | null = null;
 
 type HomeMode = 'tv' | 'game';
 
@@ -94,13 +95,17 @@ type AppSettings = {
     openModuleOnLaunch: boolean;
     startAtLogin: boolean;
     homeMode: HomeMode;
+    useVirtualMouseDriver: boolean; // 是否使用虚拟鼠标驱动
+    useVirtualKeyboardDriver: boolean; // 是否使用虚拟键盘驱动
 };
 
 const defaultSettings: AppSettings = {
     launchModuleId: '',
     openModuleOnLaunch: false,
     startAtLogin: false,
-    homeMode: 'tv'
+    homeMode: 'tv',
+    useVirtualMouseDriver: false, // 默认不使用虚拟鼠标驱动
+    useVirtualKeyboardDriver: false // 默认不使用虚拟键盘驱动
 };
 
 function getPluginConfigPath() {
@@ -449,7 +454,17 @@ app.whenReady().then(() => {
     });
 
     ipcMain.handle('settings:set', (_event, value: Partial<AppSettings>) => {
-        return persistAppSettings(value);
+        const updatedSettings = persistAppSettings(value);
+        
+        // 如果虚拟驱动设置发生变化，更新 NetworkService
+        if ((value.useVirtualMouseDriver !== undefined || value.useVirtualKeyboardDriver !== undefined) && network) {
+            network.updateSettings(
+                updatedSettings.useVirtualMouseDriver,
+                updatedSettings.useVirtualKeyboardDriver
+            );
+        }
+        
+        return updatedSettings;
     });
     
     // 监听设置面板焦点状态
@@ -701,16 +716,23 @@ app.whenReady().then(() => {
     createWindow();
     createTray();
 
+    // 读取初始设置
+    const initialSettings = readAppSettingsFile();
+    
     const discovery = new DiscoveryService(9999, console.log);
     discovery.start();
 
-    const network = new NetworkService(5001, console.log);
+    network = new NetworkService(5001, console.log, 
+        initialSettings.useVirtualMouseDriver, 
+        initialSettings.useVirtualKeyboardDriver);
     network.start();
 
     app.on('before-quit', () => {
         isQuitting = true;
         discovery.stop();
-        network.stop();
+        if (network) {
+            network.stop();
+        }
     });
 
     app.on('activate', () => {

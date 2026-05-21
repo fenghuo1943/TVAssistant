@@ -311,7 +311,7 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
     } else {
       // 回到侧边栏
       //focusedSidebarIndex.value = 0;
-      focusedContentIndex.value = 2;
+      focusedContentIndex.value = 4;
       nextTick(() => {
         //sidebarItemRefs.value[0]?.focus();
         focusGeneralSettingElement(focusedContentIndex.value);
@@ -322,7 +322,7 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
   
   if (key === StandardKey.DOWN) {
     event.preventDefault();
-    if (focusedContentIndex.value < 2) {
+    if (focusedContentIndex.value < 4) {
       focusedContentIndex.value++;
       nextTick(() => {
         focusGeneralSettingElement(focusedContentIndex.value);
@@ -339,7 +339,15 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
   
   if (key === StandardKey.LEFT) {
     event.preventDefault();
-    // 回到侧边栏，保持当前选中的菜单项
+    // 如果在模式切换上，切换模式选项
+    if (focusedContentIndex.value === 2) {
+      modeFocusedIndex.value = modeFocusedIndex.value === 0 ? 1 : 0;
+      nextTick(() => {
+        focusGeneralSettingElement(focusedContentIndex.value);
+      });
+      return;
+    }
+    // 否则回到侧边栏，保持当前选中的菜单项
     const currentMenuIndex = menuItems.findIndex(item => item.key === props.activeMenu);
     focusedSidebarIndex.value = currentMenuIndex >= 0 ? currentMenuIndex : 0;
     focusedContentIndex.value = -1;
@@ -349,12 +357,17 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
     return;
   }
   
-  if (key === StandardKey.RIGHT && focusedContentIndex.value === 2) {
+  if (key === StandardKey.RIGHT) {
     event.preventDefault();
-    modeFocusedIndex.value = modeFocusedIndex.value === 0 ? 1 : 0;
-    nextTick(() => {
-      focusGeneralSettingElement(focusedContentIndex.value);
-    });
+    // 如果在模式切换上，切换模式选项
+    if (focusedContentIndex.value === 2) {
+      modeFocusedIndex.value = modeFocusedIndex.value === 0 ? 1 : 0;
+      nextTick(() => {
+        focusGeneralSettingElement(focusedContentIndex.value);
+      });
+      return;
+    }
+    // 其他情况不做处理
     return;
   }
   
@@ -373,6 +386,10 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
       nextTick(() => {
         focusGeneralSettingElement(focusedContentIndex.value);
       });
+    } else if (focusedContentIndex.value === 3) {
+      emit('update-setting', { useVirtualMouseDriver: !props.settings.useVirtualMouseDriver });
+    } else if (focusedContentIndex.value === 4) {
+      emit('update-setting', { useVirtualKeyboardDriver: !props.settings.useVirtualKeyboardDriver });
     }
     return;
   }
@@ -380,22 +397,31 @@ function handleGeneralSettingsKeydown(event: KeyboardEvent) {
 
 /**
  * 聚焦常规设置页面的指定元素
- * 0: select, 1: switch, 2: mode toggle
+ * 0: select, 1: switch (开机自启动), 2: mode toggle, 3: switch (虚拟鼠标), 4: switch (虚拟键盘)
  */
 function focusGeneralSettingElement(index: number) {
   if (index === 0) {
     const selectElement = document.querySelector('#panel-general .setting-select') as HTMLElement | null;
     selectElement?.focus();
   } else if (index === 1) {
-    const switchElement = document.querySelector('#panel-general .switch-button') as HTMLElement | null;
-    switchElement?.focus();
+    // 第一个开关：开机自启动
+    const switches = document.querySelectorAll('#panel-general .switch-button') as NodeListOf<HTMLElement>;
+    switches[0]?.focus();
   } else if (index === 2) {
-    // 根据 modeFocusedIndex 选择对应的按钮，而不是依赖 .is-active
+    // 根据 modeFocusedIndex 选择对应的按钮
     const modeElements = document.querySelectorAll('#panel-general .mode-option') as NodeListOf<HTMLElement>;
     const targetIndex = modeFocusedIndex.value; // 0 或 1
     if (targetIndex >= 0 && targetIndex < modeElements.length) {
       modeElements[targetIndex]?.focus();
     }
+  } else if (index === 3) {
+    // 第二个开关：虚拟鼠标驱动
+    const switches = document.querySelectorAll('#panel-general .switch-button') as NodeListOf<HTMLElement>;
+    switches[1]?.focus();
+  } else if (index === 4) {
+    // 第三个开关：虚拟键盘驱动
+    const switches = document.querySelectorAll('#panel-general .switch-button') as NodeListOf<HTMLElement>;
+    switches[2]?.focus();
   }
 }
 

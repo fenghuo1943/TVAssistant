@@ -11,6 +11,8 @@ export type AppSettings = {
   homeMode: HomeMode;
   enabledShortcuts: string[]; // 存储启用的快捷方式的 url
   customShortcuts: Shortcut[]; // 存储用户自定义添加的快捷方式
+  useVirtualMouseDriver: boolean; // 是否使用虚拟鼠标驱动
+  useVirtualKeyboardDriver: boolean; // 是否使用虚拟键盘驱动
 };
 
 export const defaultShortcuts: Shortcut[] = [
@@ -50,7 +52,9 @@ export const defaultSettings: AppSettings = {
   startAtLogin: false,
   homeMode: 'tv',
   enabledShortcuts: defaultShortcuts.map(s => s.url), // 默认启用所有快捷方式
-  customShortcuts: [] // 初始化为空数组
+  customShortcuts: [], // 初始化为空数组
+  useVirtualMouseDriver: false, // 默认不使用虚拟鼠标驱动
+  useVirtualKeyboardDriver: false // 默认不使用虚拟键盘驱动
 };
 
 export const launchModuleOptions = [

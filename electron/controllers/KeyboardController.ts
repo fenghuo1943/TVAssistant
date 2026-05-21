@@ -46,15 +46,28 @@ export class KeyboardController {
   private pressedKeys: Set<number> = new Set(); // 当前按下的普通键 VK
   private activeModifiers: number = 0; // 当前激活的修饰键状态（项目格式）
 
-  constructor() {
-    if (driverModule) {
+  constructor(useVirtualDriver: boolean = false) {
+    this.useVirtualDriver = useVirtualDriver;
+    if (driverModule && this.useVirtualDriver) {
       const opened = driverModule.openDevice();
       console.log('虚拟键盘设备打开结果:', opened);
       if (opened) {
-        this.useVirtualDriver = true;
         console.log('虚拟键盘设备已打开');
       } else {
         console.warn('虚拟键盘设备打开失败，回退到 robotjs');
+        this.useVirtualDriver = false;
+      }
+    }
+  }
+
+  setUseVirtualDriver(enabled: boolean) {
+    this.useVirtualDriver = enabled;
+    if (enabled && driverModule) {
+      const opened = driverModule.openDevice();
+      console.log('虚拟键盘设备打开结果:', opened);
+      if (!opened) {
+        console.warn('虚拟键盘设备打开失败，回退到 robotjs');
+        this.useVirtualDriver = false;
       }
     }
   }

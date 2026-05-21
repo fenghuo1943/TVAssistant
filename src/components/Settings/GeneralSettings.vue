@@ -58,6 +58,40 @@
         </button>
       </div>
     </div>
+
+    <div class="setting-row">
+      <div class="setting-copy">
+        <div class="setting-label" id="virtual-mouse-label">使用虚拟鼠标驱动</div>
+        <div class="setting-desc">启用后将使用虚拟鼠标驱动代替 robotjs，提供更好的兼容性。</div>
+      </div>
+      <button
+        type="button"
+        class="switch-button"
+        :class="{ 'is-on': settings.useVirtualMouseDriver }"
+        :aria-pressed="settings.useVirtualMouseDriver"
+        @click="$emit('update-setting', { useVirtualMouseDriver: !settings.useVirtualMouseDriver })"
+        aria-labelledby="virtual-mouse-label"
+      >
+        <span class="switch-knob" />
+      </button>
+    </div>
+
+    <div class="setting-row">
+      <div class="setting-copy">
+        <div class="setting-label" id="virtual-keyboard-label">使用虚拟键盘驱动</div>
+        <div class="setting-desc">启用后将使用虚拟键盘驱动代替 robotjs，提供更好的兼容性。</div>
+      </div>
+      <button
+        type="button"
+        class="switch-button"
+        :class="{ 'is-on': settings.useVirtualKeyboardDriver }"
+        :aria-pressed="settings.useVirtualKeyboardDriver"
+        @click="$emit('update-setting', { useVirtualKeyboardDriver: !settings.useVirtualKeyboardDriver })"
+        aria-labelledby="virtual-keyboard-label"
+      >
+        <span class="switch-knob" />
+      </button>
+    </div>
   </section>
 </template>
 
