@@ -23,7 +23,7 @@
   "license": "ISC",
   "build": {
     "appId": "com.tvassistant.app",
-    "productName": "TVAssistant",
+    "productName": "电视助手",
     "directories": {
       "output": "release",
       "buildResources": "electron/assets"
@@ -34,6 +34,11 @@
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": "electron/assets",
+        "to": "electron/assets",
+        "filter": ["**/*"]
+      },
       {
         "from": "native/build/Release",
         "to": "native/build/Release",
@@ -46,8 +51,7 @@
           "target": "dir",
           "arch": ["x64"]
         }
-      ],
-      "icon": "electron/assets/tray-icon.png"
+      ]
     },
     "nsis": {
       "oneClick": false,

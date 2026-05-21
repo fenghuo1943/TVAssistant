@@ -7,7 +7,7 @@
  * 应用基本信息
  */
 export const APP_CONFIG = {
-  NAME: 'TV Assistant',
+  NAME: '电视助手',
   VERSION: '1.0.0',
   DEFAULT_WIDTH: 1920,
   DEFAULT_HEIGHT: 1080

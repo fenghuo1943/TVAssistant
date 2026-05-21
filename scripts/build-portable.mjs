@@ -9,7 +9,7 @@ const projectRoot = path.resolve(__dirname, '..');
 
 // 配置
 const OUTPUT_DIR = path.join(projectRoot, 'dist-portable');
-const APP_NAME = 'TVAssistant';
+const APP_NAME = '电视助手';
 
 console.log('📦 开始构建便携式版本...\n');
 

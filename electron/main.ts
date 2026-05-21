@@ -309,10 +309,18 @@ function forwardKeyInput(target: InstanceType<typeof BrowserWindow>['webContents
 }
 
 function resolveCustomIconPath() {
-    return [
+    // 根据环境判断图标路径
+    // 开发环境：__dirname 是 dist/electron
+    // 生产环境：图标在 asar 内的 dist/electron/assets 或 extraResources
+    const paths = app.isPackaged ? [
+        path.join(process.resourcesPath, 'electron/assets/tray-icon.png'),
+        path.resolve(__dirname, 'assets/tray-icon.png'),
+    ] : [
         path.resolve(__dirname, '../assets/tray-icon.png'),
         path.resolve(__dirname, '../../electron/assets/tray-icon.png')
-    ].find((candidate) => fs.existsSync(candidate));
+    ];
+    
+    return paths.find((candidate) => fs.existsSync(candidate));
 }
 
 function createTrayIcon() {
@@ -339,6 +347,8 @@ function createTrayIcon() {
 
 function createWindow() {
     const customIconPath = resolveCustomIconPath();
+    console.log('窗口图标路径:', customIconPath);
+    console.log('图标文件是否存在:', customIconPath ? fs.existsSync(customIconPath) : 'N/A');
 
     win = new BrowserWindow({
         width: 800,
@@ -398,7 +408,7 @@ function createTray() {
     }
 
     tray = new Tray(createTrayIcon());
-    tray.setToolTip('TV Assistant');
+    tray.setToolTip('电视助手');
     tray.setContextMenu(
         Menu.buildFromTemplate([
             {
@@ -650,6 +660,44 @@ app.whenReady().then(() => {
         } catch (error) {
             console.error(`打开应用时出错:`, error);
             return { success: false, error: error instanceof Error ? error.message : '未知错误' };
+        }
+    });
+
+    // 获取前台应用程序的进程路径
+    ipcMain.handle('app:get-foreground-app-path', async () => {
+        try {
+            if (!driver || typeof driver.getForegroundAppPath !== 'function') {
+                console.warn('Native addon 未加载或 getForegroundAppPath 函数不可用');
+                return '';
+            }
+            
+            const appPath = driver.getForegroundAppPath();
+            console.log('前台应用路径:', appPath);
+            return appPath;
+        } catch (error) {
+            console.error('获取前台应用路径失败:', error);
+            return '';
+        }
+    });
+
+    // 检查前台应用是否在给定的路径列表中
+    ipcMain.handle('app:is-foreground-app-in-list', async (_event, pathList: string[]) => {
+        try {
+            if (!driver || typeof driver.isForegroundAppInList !== 'function') {
+                console.warn('Native addon 未加载或 isForegroundAppInList 函数不可用');
+                return false;
+            }
+            
+            if (!Array.isArray(pathList) || pathList.length === 0) {
+                return false;
+            }
+            
+            const isInList = driver.isForegroundAppInList(pathList);
+            console.log('前台应用是否在列表中:', isInList);
+            return isInList;
+        } catch (error) {
+            console.error('检查前台应用失败:', error);
+            return false;
         }
     });
 

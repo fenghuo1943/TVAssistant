@@ -386,13 +386,136 @@ Napi::Value ExtractExeIcon(const Napi::CallbackInfo& info) {
 }
 
 
+// 获取前台应用程序的进程路径
+Napi::Value GetForegroundAppPath(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    // 获取前台窗口句柄
+    HWND hwnd = GetForegroundWindow();
+    if (!hwnd) {
+        return Napi::String::New(env, "");
+    }
+    
+    // 获取窗口所属的进程 ID
+    DWORD processId = 0;
+    GetWindowThreadProcessId(hwnd, &processId);
+    
+    if (processId == 0) {
+        return Napi::String::New(env, "");
+    }
+    
+    // 打开进程以查询信息
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId);
+    if (!hProcess) {
+        printf("无法打开进程，PID: %lu, 错误码: %lu\n", processId, GetLastError());
+        return Napi::String::New(env, "");
+    }
+    
+    // 获取进程可执行文件路径
+    wchar_t path[MAX_PATH];
+    DWORD pathSize = MAX_PATH;
+    BOOL success = QueryFullProcessImageNameW(hProcess, 0, path, &pathSize);
+    
+    CloseHandle(hProcess);
+    
+    if (!success) {
+        printf("无法获取进程路径，错误码: %lu\n", GetLastError());
+        return Napi::String::New(env, "");
+    }
+    
+    // 将宽字符串转换为 UTF-8
+    int utf8Len = WideCharToMultiByte(CP_UTF8, 0, path, -1, NULL, 0, NULL, NULL);
+    std::vector<char> utf8Path(utf8Len);
+    WideCharToMultiByte(CP_UTF8, 0, path, -1, utf8Path.data(), utf8Len, NULL, NULL);
+    
+    printf("前台应用路径: %s\n", utf8Path.data());
+    
+    return Napi::String::New(env, utf8Path.data());
+}
+
+// 检查前台应用是否匹配给定的路径列表
+Napi::Value IsForegroundAppInList(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    
+    if (info.Length() < 1 || !info[0].IsArray()) {
+        return Napi::Boolean::New(env, false);
+    }
+    
+    Napi::Array pathList = info[0].As<Napi::Array>();
+    
+    // 获取前台应用路径
+    HWND hwnd = GetForegroundWindow();
+    if (!hwnd) {
+        return Napi::Boolean::New(env, false);
+    }
+    
+    DWORD processId = 0;
+    GetWindowThreadProcessId(hwnd, &processId);
+    
+    if (processId == 0) {
+        return Napi::Boolean::New(env, false);
+    }
+    
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId);
+    if (!hProcess) {
+        return Napi::Boolean::New(env, false);
+    }
+    
+    wchar_t currentPath[MAX_PATH];
+    DWORD pathSize = MAX_PATH;
+    BOOL success = QueryFullProcessImageNameW(hProcess, 0, currentPath, &pathSize);
+    
+    CloseHandle(hProcess);
+    
+    if (!success) {
+        return Napi::Boolean::New(env, false);
+    }
+    
+    // 将当前路径转换为小写以便比较（Windows 路径不区分大小写）
+    std::wstring currentPathLower(currentPath);
+    for (auto& c : currentPathLower) {
+        c = towlower(c);
+    }
+    
+    // 遍历路径列表进行匹配
+    for (uint32_t i = 0; i < pathList.Length(); i++) {
+        Napi::Value val = pathList.Get(i);
+        if (val.IsString()) {
+            std::string pathStr = val.As<Napi::String>().Utf8Value();
+            
+            // 转换为宽字符串
+            int wlen = MultiByteToWideChar(CP_UTF8, 0, pathStr.c_str(), -1, NULL, 0);
+            std::vector<wchar_t> wpath(wlen);
+            MultiByteToWideChar(CP_UTF8, 0, pathStr.c_str(), -1, wpath.data(), wlen);
+            
+            // 转换为小写
+            std::wstring checkPathLower(wpath.data());
+            for (auto& c : checkPathLower) {
+                c = towlower(c);
+            }
+            
+            // 精确匹配或子路径匹配
+            if (currentPathLower == checkPathLower || 
+                currentPathLower.find(checkPathLower) != std::wstring::npos ||
+                checkPathLower.find(currentPathLower) != std::wstring::npos) {
+                printf("匹配成功: %s\n", pathStr.c_str());
+                return Napi::Boolean::New(env, true);
+            }
+        }
+    }
+    
+    return Napi::Boolean::New(env, false);
+}
+
 Napi::Object Init(Napi::Env env, Napi::Object exports) {
     exports.Set("openDevice", Napi::Function::New(env, OpenDevice));
     exports.Set("moveMouse", Napi::Function::New(env, MoveMouse));
     exports.Set("clickMouse", Napi::Function::New(env, ClickMouse));
     exports.Set("scrollMouse", Napi::Function::New(env, scrollMouse));
     exports.Set("keyboardMulti", Napi::Function::New(env, KeyboardMulti));
-    exports.Set("extractIcon", Napi::Function::New(env, ExtractExeIcon));    
+    exports.Set("extractIcon", Napi::Function::New(env, ExtractExeIcon));
+    exports.Set("getForegroundAppPath", Napi::Function::New(env, GetForegroundAppPath));
+    exports.Set("isForegroundAppInList", Napi::Function::New(env, IsForegroundAppInList));
     return exports;
 }
 
