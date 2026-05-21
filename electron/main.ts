@@ -47,27 +47,24 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 const devServerUrl = process.env.VITE_DEV_SERVER_URL ?? 'http://localhost:5173';
 const rendererHtmlPath = path.resolve(__dirname, '../index.html');
 
-// 设置用户数据目录为程序所在目录的 data 文件夹（实现完全便携）
-// 开发环境：使用项目根目录的 data 文件夹
-// 生产环境（打包后）：使用可执行文件所在目录的 data 文件夹
-let localDataDir: string;
+// 设置用户数据目录
+// 开发环境：使用默认的用户数据目录
+// 生产环境（打包后）：使用可执行文件所在目录的 data 文件夹（实现完全便携）
 if (app.isPackaged) {
     // 打包后的应用：使用可执行文件所在目录
     const appDir = path.dirname(app.getPath('exe'));
-    localDataDir = path.join(appDir, 'data');
+    const localDataDir = path.join(appDir, 'data');
+    
+    try {
+        fs.mkdirSync(localDataDir, { recursive: true });
+        app.setPath('userData', localDataDir);
+        console.log('用户数据目录已设置为:', localDataDir);
+    } catch (error) {
+        console.error('设置用户数据目录失败:', error);
+    }
 } else {
-    // 开发环境或未打包：使用项目根目录
-    // __dirname 是 dist/electron 目录，需要向上一级到项目根目录
-    const projectRoot = path.resolve(__dirname, '..');
-    localDataDir = path.join(projectRoot, 'data');
-}
-
-try {
-    fs.mkdirSync(localDataDir, { recursive: true });
-    app.setPath('userData', localDataDir);
-    console.log('用户数据目录已设置为:', localDataDir);
-} catch (error) {
-    console.error('设置用户数据目录失败:', error);
+    // 开发环境：使用默认的用户数据目录
+    console.log('开发模式：使用默认用户数据目录:', app.getPath('userData'));
 }
 
 const forwardedKeys: Set<string> = new Set([

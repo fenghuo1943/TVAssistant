@@ -42,6 +42,9 @@ try {
 
 export class KeyboardController {
   private useVirtualDriver = false;
+  // 跟踪当前按下的按键和修饰键状态
+  private pressedKeys: Set<number> = new Set(); // 当前按下的普通键 VK
+  private activeModifiers: number = 0; // 当前激活的修饰键状态（项目格式）
 
   constructor() {
     if (driverModule) {
@@ -69,11 +72,15 @@ export class KeyboardController {
         // 检查是否是修饰键本身
         const isModifierKey = this.isModifierVk(vk);
         if (isModifierKey) {
-          // 修饰键需要通过 modifier 位来设置，而不是放入 keys 数组
-          const newModifier = this.addModifierBit(modifier, vk);
-          const hidModifier = this.convertToHidModifier(newModifier);
-          driverModule.keyboardMulti(hidModifier, 0);  // 没有普通按键
+          // 更新内部修饰键状态
+          this.activeModifiers = this.addModifierBit(this.activeModifiers, vk);
+          const hidModifier = this.convertToHidModifier(this.activeModifiers);
+          // 发送当前所有修饰键状态 + 已按下的普通键
+          const keys = Array.from(this.pressedKeys).map(k => this.vkToScanCode(k));
+          driverModule.keyboardMulti(hidModifier, keys.length, ...keys);
         } else {
+          // 普通键：添加到按下集合
+          this.pressedKeys.add(vk);
           const scanCode = this.vkToScanCode(vk);
           const hidModifier = this.convertToHidModifier(modifier);
           driverModule.keyboardMulti(hidModifier, 1, scanCode);
@@ -105,14 +112,19 @@ export class KeyboardController {
         // 检查是否是修饰键本身
         const isModifierKey = this.isModifierVk(vk);
         if (isModifierKey) {
-          // 修饰键需要通过 modifier 位来清除
-          const newModifier = this.removeModifierBit(modifier, vk);
-          const hidModifier = this.convertToHidModifier(newModifier);
-          driverModule.keyboardMulti(hidModifier, 0);  // 没有普通按键
+          // 更新内部修饰键状态
+          this.activeModifiers = this.removeModifierBit(this.activeModifiers, vk);
+          const hidModifier = this.convertToHidModifier(this.activeModifiers);
+          // 发送当前所有修饰键状态 + 已按下的普通键
+          const keys = Array.from(this.pressedKeys).map(k => this.vkToScanCode(k));
+          driverModule.keyboardMulti(hidModifier, keys.length, ...keys);
         } else {
-          const scanCode = this.vkToScanCode(vk);
-          const hidModifier = this.convertToHidModifier(modifier);
-          driverModule.keyboardMulti(hidModifier, 0, scanCode);
+          // 普通键：从按下集合移除
+          this.pressedKeys.delete(vk);
+          const hidModifier = this.convertToHidModifier(this.activeModifiers);
+          // 发送剩余的按键状态（不包含已释放的键）
+          const keys = Array.from(this.pressedKeys).map(k => this.vkToScanCode(k));
+          driverModule.keyboardMulti(hidModifier, keys.length, ...keys);
         }
       } else {
         const robotKey = this.vkToRobot(vk);
@@ -178,10 +190,10 @@ export class KeyboardController {
 
   private mapModifier(mod: number): string[] {
     const result: string[] = [];
-    if (mod & 1) result.push("shift");
-    if (mod & 2) result.push("control");
-    if (mod & 4) result.push("alt");
-    if (mod & 8) result.push("command");
+    if (mod & 1) result.push("alt");        // Bit 0 = Alt
+    if (mod & 2) result.push("control");    // Bit 1 = Ctrl
+    if (mod & 4) result.push("shift");      // Bit 2 = Shift
+    if (mod & 8) result.push("command");    // Bit 3 = Win
     return result;
   }
 
