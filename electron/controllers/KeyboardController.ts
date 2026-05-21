@@ -203,10 +203,10 @@ export class KeyboardController {
 
   private mapModifier(mod: number): string[] {
     const result: string[] = [];
-    if (mod & 1) result.push("alt");        // Bit 0 = Alt
-    if (mod & 2) result.push("control");    // Bit 1 = Ctrl
-    if (mod & 4) result.push("shift");      // Bit 2 = Shift
-    if (mod & 8) result.push("command");    // Bit 3 = Win
+    if (mod & 1) result.push("control");   // Bit 0 = Ctrl
+    if (mod & 2) result.push("shift");     // Bit 1 = Shift
+    if (mod & 4) result.push("alt");       // Bit 2 = Alt
+    if (mod & 8) result.push("command");   // Bit 3 = Win
     return result;
   }
 
@@ -446,10 +446,10 @@ export class KeyboardController {
     return modifierVks.includes(vk);
   }
 
-  // 新增方法：根据 VK 添加对应的 modifier 位
+  // 新增方法:根据 VK 添加对应的 modifier 位
   private addModifierBit(currentModifier: number, vk: number): number {
     let newModifier = currentModifier;
-    
+      
     // Left Control (17, 162) -> bit 0
     if (vk === 17 || vk === 162) {
       newModifier |= 1;
@@ -478,7 +478,7 @@ export class KeyboardController {
     else if (vk === 165) {
       newModifier |= 64;
     }
-    
+      
     return newModifier;
   }
 
@@ -518,32 +518,32 @@ export class KeyboardController {
     return newModifier;
   }
 
-  // 新增方法：将传入的 modifier 转换为 USB HID 标准的 modifier byte
-  // 输入格式: Bit 0=Alt, Bit 1=Ctrl, Bit 2=Shift, Bit 3=Win
+  // 新增方法:将传入的 modifier 转换为 USB HID 标准的 modifier byte
+  // 输入格式: Bit 0=Ctrl, Bit 1=Shift, Bit 2=Alt, Bit 3=Win
   // 输出格式: Bit 0=Left Ctrl, Bit 1=Left Shift, Bit 2=Left Alt, Bit 3=Left GUI
   private convertToHidModifier(inputModifier: number): number {
     let hidModifier = 0;
-    
-    // 输入 Bit 1 (Ctrl) -> 输出 Bit 0 (Left Control)
-    if (inputModifier & 0x02) {
+      
+    // 输入 Bit 0 (Ctrl) -> 输出 Bit 0 (Left Control)
+    if (inputModifier & 0x01) {
       hidModifier |= 0x01;
     }
-    
-    // 输入 Bit 2 (Shift) -> 输出 Bit 1 (Left Shift)
-    if (inputModifier & 0x04) {
+      
+    // 输入 Bit 1 (Shift) -> 输出 Bit 1 (Left Shift)
+    if (inputModifier & 0x02) {
       hidModifier |= 0x02;
     }
-    
-    // 输入 Bit 0 (Alt) -> 输出 Bit 2 (Left Alt)
-    if (inputModifier & 0x01) {
+      
+    // 输入 Bit 2 (Alt) -> 输出 Bit 2 (Left Alt)
+    if (inputModifier & 0x04) {
       hidModifier |= 0x04;
     }
-    
+      
     // 输入 Bit 3 (Win) -> 输出 Bit 3 (Left GUI)
     if (inputModifier & 0x08) {
       hidModifier |= 0x08;
     }
-    
+      
     return hidModifier;
   }
 }
